@@ -1,4 +1,4 @@
-# Final Bout recomp — primeira versao (marco 1)
+# Final Bout recomp — primeira versao (marco 15)
 
 <img width="1024" height="1024" alt="dbgtbout-1651430927647" src="https://github.com/user-attachments/assets/93ea423b-0928-4e91-84dc-80e516663c47" />
 
@@ -97,3 +97,10 @@ Publique apenas a ferramenta (recomp.py + runtime).
 - Resultado: com `--video` o jogo lê os 5 setores do 1º quadro, o MDEC decodifica (quadro preto = início de fade) e o jogo segue para o STEP01. Os quadros seguintes ainda não são pedidos: o jogo encerra o vídeo após o 1º quadro (causa em investigação).
 - Memory card (Marco 13) incluído. Depuração: DBGIO=1 (escritas em DICR/I_MASK/DPCR), TRACE_HDR=N (traça N chamadas após cada cabeçalho STR), MDECLOG=1 (mostra quadro e média).
 - Regressão: menu → luta (STEP40) continua funcionando.
+
+## Marco 15 — Vídeo STR/MDEC funcionando (`--video`)
+- Causa do vídeo parar no 1º quadro: o setor seguinte era entregue dentro da mesma ISR, antes do callback de fim de DMA (8001f250) marcar o quadro como pronto; o 1º setor do quadro seguinte era descartado pela libcd. Agora `cd_poll` não entrega setor de dados enquanto `in_isr` (equivale aos ~13 ms do hardware entre setores).
+- Resultado: a abertura da Bandai toca (206 quadros decodificados em 1700 vblanks, imagem correta). Regressão menu → luta (STEP40) OK.
+- Tentativas descartadas: reagendar setores com `now+periodo` e ordenar a fila de eventos deixaram o carregamento normal lento (head-of-line); não usar.
+- Depuração nova: DBGST=1 (parâmetros do StSetStream).
+- Pendente: XA (áudio dos vídeos) ainda não validado de ouvido; STEP02/STEP999; janela SDL em tela real.
