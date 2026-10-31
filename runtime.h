@@ -16,3 +16,8 @@ void cpu_div(uint32_t a, uint32_t b); void cpu_divu(uint32_t a, uint32_t b);
 uint32_t cop0_rd(int r); void cop0_wr(int r, uint32_t v);
 uint32_t gte_rd(int r); void gte_wr(int r, uint32_t v); uint32_t gte_ctl_rd(int r); void gte_ctl_wr(int r, uint32_t v); void gte_cmd(uint32_t w);
 int hle_hook(uint32_t a);
+/* perifericos (evita declaracao implicita, que e erro no GCC 14+) */
+void xa_feed(const uint8_t* sector);
+void mdec_dma_in(uint32_t madr, uint32_t words); void mdec_dma_out(uint32_t madr, uint32_t words);
+void spu_dma(uint32_t madr, uint32_t words, int to_spu);
+void gpu_dma(uint32_t madr, uint32_t bcr, uint32_t chcr);
