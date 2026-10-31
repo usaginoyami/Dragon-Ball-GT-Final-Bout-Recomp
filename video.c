@@ -8,14 +8,30 @@ void gpu_render(uint32_t*, int*, int*);
 void pad_set(uint32_t);
 static SDL_Window* win; static SDL_Renderer* ren; static SDL_Texture* tex; static int tw, th;
 static uint32_t fb[640 * 480];
-static uint32_t keys; static SDL_AudioDeviceID adev;
+static uint32_t keys, padbits; static SDL_AudioDeviceID adev; static SDL_GameController* gc;
+static void gc_open(void) { if (gc) return; for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) { gc = SDL_GameControllerOpen(i); if (gc) { fprintf(stderr, "[pad] controle: %s\n", SDL_GameControllerName(gc)); break; } } }
+static uint32_t gc_bits(void) {
+    if (!gc) return 0; uint32_t m = 0;
+#define B(btn, bit) if (SDL_GameControllerGetButton(gc, btn)) m |= 1u << (bit)
+    B(SDL_CONTROLLER_BUTTON_BACK, 0); B(SDL_CONTROLLER_BUTTON_LEFTSTICK, 1); B(SDL_CONTROLLER_BUTTON_RIGHTSTICK, 2); B(SDL_CONTROLLER_BUTTON_START, 3);
+    B(SDL_CONTROLLER_BUTTON_DPAD_UP, 4); B(SDL_CONTROLLER_BUTTON_DPAD_RIGHT, 5); B(SDL_CONTROLLER_BUTTON_DPAD_DOWN, 6); B(SDL_CONTROLLER_BUTTON_DPAD_LEFT, 7);
+    B(SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 10); B(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 11);
+    B(SDL_CONTROLLER_BUTTON_Y, 12); B(SDL_CONTROLLER_BUTTON_B, 13); B(SDL_CONTROLLER_BUTTON_A, 14); B(SDL_CONTROLLER_BUTTON_X, 15);
+#undef B
+    if (SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 16000) m |= 1u << 8;
+    if (SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000) m |= 1u << 9;
+    int ax = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTX), ay = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTY);
+    if (ay < -16000) m |= 1u << 4; if (ax > 16000) m |= 1u << 5; if (ay > 16000) m |= 1u << 6; if (ax < -16000) m |= 1u << 7;
+    return m;
+}
 int video_init(void) {
-    if (SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "SDL: %s\n", SDL_GetError()); return 0; }
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER)) { fprintf(stderr, "SDL: %s\n", SDL_GetError()); return 0; }
     win = SDL_CreateWindow("Dragon Ball GT Final Bout (recomp)", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 720, SDL_WINDOW_RESIZABLE);
     ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!ren) ren = SDL_CreateRenderer(win, -1, 0);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) { SDL_AudioSpec w = { 0 }, h; w.freq = 44100; w.format = AUDIO_S16SYS; w.channels = 2; w.samples = 1024; adev = SDL_OpenAudioDevice(NULL, 0, &w, &h, 0); if (adev) SDL_PauseAudioDevice(adev, 0); }
+    gc_open();
     return win && ren;
 }
 static uint32_t keybit(SDL_Keycode k) {
@@ -38,8 +54,11 @@ void video_present(void) {
         if (e.type == SDL_QUIT || (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)) exit(0);
         if (e.type == SDL_KEYDOWN && !e.key.repeat) keys |= keybit(e.key.keysym.sym);
         if (e.type == SDL_KEYUP) keys &= ~keybit(e.key.keysym.sym);
+        if (e.type == SDL_CONTROLLERDEVICEADDED) gc_open();
+        if (e.type == SDL_CONTROLLERDEVICEREMOVED && gc && e.cdevice.which == SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc))) { SDL_GameControllerClose(gc); gc = NULL; gc_open(); }
     }
-    pad_set(keys);
+    padbits = gc_bits();
+    pad_set(keys | padbits);
     int w, h; gpu_render(fb, &w, &h);
     if (!tex || w != tw || h != th) { if (tex) SDL_DestroyTexture(tex); tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h); tw = w; th = h; }
     SDL_UpdateTexture(tex, NULL, fb, w * 4);

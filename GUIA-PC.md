@@ -51,6 +51,9 @@ Use o nome real do seu arquivo `.bin`, entre aspas se tiver espaços.
 | Select | Backspace ou Shift direito |
 | Sair | Esc |
 
+## Controle (XInput / Xbox)
+Controles Xbox/XInput (e outros que o SDL2 reconheça) funcionam sozinhos, ligados antes ou durante o jogo: A=Cross, B=Circulo, X=Quadrado, Y=Triangulo, LB/RB=L1/R1, LT/RT=L2/R2, Back=Select, Start=Start, direcional ou analogico esquerdo = direcional. Hoje só o controle 1 (um controle) é usado. O teclado continua funcionando junto.
+
 ## O que eu preciso que você teste
 1. A janela abre e mostra o vídeo da Bandai e as logos com o som certo?
 2. O menu responde ao teclado? Dá para ir de Start até a luta?
