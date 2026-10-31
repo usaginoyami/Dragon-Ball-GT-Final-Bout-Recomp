@@ -112,3 +112,8 @@ Publique apenas a ferramenta (recomp.py + runtime).
 - `--estado 20@700` carrega e executa o overlay STEP02 (fundo de rocha com o dragão); `--estado 50@700` executa o STEP999 (céu/nuvens). Nenhum "[nao traduzido]".
 - Pendente: a tela do torneio (STEP01 substate 0x218) não avança só com CROSS; o caminho normal até STEP02/STEP999 ainda não foi achado.
 - Às vezes aparece "CD timeout" ao forçar o estado (timing do CD com `--cd-turbo`); não reproduz em toda execução.
+
+### Notas de exploração (Marco 16, continuação)
+- O "[travou] loop sem fim" que aparecia nos testes era o alarme padrão de 30 s do runtime. Use `ALARM=0` (ou um valor maior) em execuções longas.
+- `DBGSUB=1` (com `DBGSTATE=1`) imprime também o substate do STEP01 a cada mudança.
+- Tela do torneio: substate 0x218 é tratado por 80041d24. TRIANGLE leva a 0x219, que volta para 0x215; CROSS volta ao menu (0x20d). Esse caminho não chegou a STEP02/STEP999.

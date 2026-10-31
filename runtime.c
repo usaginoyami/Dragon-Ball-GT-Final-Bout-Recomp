@@ -113,7 +113,7 @@ static void run_vblank(void) {
     if (getenv("VERBOSEAT")) { int f = atoi(getenv("VERBOSEAT")); if ((int)g_frames == f) g_verbose = 1; if ((int)g_frames == f + 1) g_verbose = 0; }
     if (getenv("DUMPAT") && (int)g_frames == atoi(getenv("DUMPAT"))) { FILE* df = fopen("ram.bin", "wb"); fwrite(ram, 1, sizeof ram, df); fclose(df); }
     if (force_state != 0xffffffff && g_frames == force_at) { wr16(0x80034fdc, force_state); wr16(0x80056878, 1); fprintf(stderr, "[estado] forcado %x no quadro %u\n", force_state, g_frames); }
-    { static uint32_t last_state = 0xffffffff; uint32_t st = rd32(0x80034fdc) & 0xffff; if (st != last_state) { if (getenv("DBGSTATE")) fprintf(stderr, "[estado] quadro %u: %02x -> %02x (sub %x)\n", g_frames, last_state & 0xff, st, rd32(0x80057484)); last_state = st; } }
+    { static uint32_t last_state = 0xffffffff; uint32_t st = (rd32(0x80034fdc) & 0xffff) | (getenv("DBGSUB") ? rd32(0x80057484) << 16 : 0); if (st != last_state) { if (getenv("DBGSTATE")) fprintf(stderr, "[estado] quadro %u: %02x -> %02x (sub %x)\n", g_frames, last_state & 0xff, st, rd32(0x80057484)); last_state = st; } }
     if (getenv("TRACE_SUB")) { static int done; extern int g_trace_n; if (!done && rd32(0x80057484) == (uint32_t)strtoul(getenv("TRACE_SUB"), 0, 16) && g_frames % 60 == 0) { done = 1; g_trace_n = 20000; } }
     if (getenv("DBGS") && g_frames % 120 == 0) fprintf(stderr, "[estado] quadro %u substado=%x main=%x\n", g_frames, rd32(0x80057484), rd32(R[28] + 0x108));
     for (uint32_t k = 0; k < g_nshots; k++) if (g_frames == g_shots[k]) { char fn[64]; sprintf(fn, "shot_%u.ppm", g_frames); gpu_dump(fn); if (k == g_nshots - 1) gpu_dump_vram("vram.ppm"); gpu_info(); }
