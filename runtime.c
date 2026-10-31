@@ -277,7 +277,11 @@ int main(int argc, char** argv) {
     overlay_init(); init_kernel_tables();
     R[28] = gp; R[29] = 0x801fff00; R[31] = 0;
     if (g_win) { if (!video_init()) { fprintf(stderr, "janela indisponivel (compile com SDL2: veja build.sh)\n"); return 1; } putenv("ALARM=0"); }
+#ifndef _WIN32
     signal(SIGALRM, on_alarm); alarm(getenv("ALARM") ? atoi(getenv("ALARM")) : 30);
+#else
+    (void)on_alarm;   /* Windows nao tem SIGALRM/alarm: sem watchdog */
+#endif
     fprintf(stderr, "[inicio] entry=%08x\n", pc);
     call_addr(pc);
     fprintf(stderr, "[fim] entry retornou. chamadas=%llu\n", (unsigned long long)g_calls);
