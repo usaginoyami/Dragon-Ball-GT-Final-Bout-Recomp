@@ -1,5 +1,8 @@
 # Final Bout recomp — primeira versao (marco 1)
 
+<img width="1024" height="1024" alt="dbgtbout-1651430927647" src="https://github.com/user-attachments/assets/93ea423b-0928-4e91-84dc-80e516663c47" />
+
+
 Gera C a partir do SLUS_004.93 (seu disco) e roda o boot do jogo.
 
 ## Usar
