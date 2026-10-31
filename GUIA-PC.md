@@ -17,7 +17,7 @@ Você precisa do SEU disco: `Dragon_Ball_GT_-_Final_Bout.bin`. Nada do jogo vai 
     cd Dragon-Ball-GT-Final-Bout-Recomp
 
 ## 3. Extrair arquivos do disco
-Do seu `.bin`, extraia `SLUS_004.93` e os `STEP00.BIN`, `STEP01.BIN`, `STEP02.BIN`, `STEP03.BIN`, `STEP40.BIN`, `STEP999.BIN` (ficam na pasta MENU).
+(Coloque o `.bin` na pasta `jogo/`.) Do seu `.bin`, extraia `SLUS_004.93` e os `STEP00.BIN`, `STEP01.BIN`, `STEP02.BIN`, `STEP03.BIN`, `STEP40.BIN`, `STEP999.BIN` (ficam na pasta MENU).
 Uma opção é o `dumpsxiso` (do projeto mkpsxiso), que extrai tudo de um `.bin`:
 
     dumpsxiso Dragon_Ball_GT_-_Final_Bout.bin -x extraido
@@ -32,9 +32,10 @@ O build detecta o SDL2 sozinho. Se aparecer "pronto: ./recomp_test ...", deu cer
 
 ## 5. Jogar
 
-    ./recomp_test jogo/SLUS_004.93 --bin Dragon_Ball_GT_-_Final_Bout.bin --janela --cd-turbo 10
+    ./recomp_test jogo/SLUS_004.93 --bin "jogo/NOME DO SEU DISCO.bin" --janela --cd-turbo 10 --video
 
-(O `--cd-turbo 10` acelera as cargas. Tire se quiser o tempo real do CD.)
+Use o nome real do seu arquivo `.bin`, entre aspas se tiver espaços.
+`--cd-turbo 10` acelera as cargas (tire para o tempo real do CD). Por padrão o vídeo da Bandai é pulado; `--video` liga o vídeo com som.
 
 ## Teclas
 | Controle | Tecla |
@@ -57,3 +58,7 @@ O build detecta o SDL2 sozinho. Se aparecer "pronto: ./recomp_test ...", deu cer
 4. Ficou travando, com o som picotando ou com tela preta em algum ponto? Diga em qual tela.
 
 Se algo der erro, copie as últimas linhas do terminal e me mande.
+
+## Problemas conhecidos no Windows
+- O build usa GCC 14+ do MSYS2; o `build.sh` já tem as flags necessárias.
+- Se a janela abrir e fechar na hora com `[nao traduzido]`, o `.bin` não foi encontrado: confira o nome do arquivo.
