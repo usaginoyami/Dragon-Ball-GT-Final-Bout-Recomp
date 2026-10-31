@@ -84,6 +84,7 @@ static double audio_t = 0; static void audio_run(void) {
     audio_push(buf, n);
 } extern int gpu_logn; void gpu_vblank(void); int gpu_dump(const char*); int gpu_dump_vram(const char*); void gpu_info(void);
 uint32_t g_frames; static uint32_t g_shots[32], g_nshots, g_maxf = 0xffffffff;
+static uint32_t force_state=0xffffffff, force_at=0;
 static uint32_t pad_buf[2]; static uint32_t pad_mask, pad_start_at = 0xffffffff, pad_period = 90;
 void pad_set(uint32_t m) { pad_mask = m; }
 static int g_win;
@@ -111,6 +112,9 @@ static void run_vblank(void) {
     if (getenv("GPU_LOGAT") && g_frames == (uint32_t)atoi(getenv("GPU_LOGAT"))) gpu_logn = 3000;
     if (getenv("VERBOSEAT")) { int f = atoi(getenv("VERBOSEAT")); if ((int)g_frames == f) g_verbose = 1; if ((int)g_frames == f + 1) g_verbose = 0; }
     if (getenv("DUMPAT") && (int)g_frames == atoi(getenv("DUMPAT"))) { FILE* df = fopen("ram.bin", "wb"); fwrite(ram, 1, sizeof ram, df); fclose(df); }
+    if (force_state != 0xffffffff && g_frames == force_at) { wr16(0x80034fdc, force_state); wr16(0x80056878, 1); fprintf(stderr, "[estado] forcado %x no quadro %u\n", force_state, g_frames); }
+    { static uint32_t last_state = 0xffffffff; uint32_t st = rd32(0x80034fdc) & 0xffff; if (st != last_state) { if (getenv("DBGSTATE")) fprintf(stderr, "[estado] quadro %u: %02x -> %02x (sub %x)\n", g_frames, last_state & 0xff, st, rd32(0x80057484)); last_state = st; } }
+    if (getenv("TRACE_SUB")) { static int done; extern int g_trace_n; if (!done && rd32(0x80057484) == (uint32_t)strtoul(getenv("TRACE_SUB"), 0, 16) && g_frames % 60 == 0) { done = 1; g_trace_n = 20000; } }
     if (getenv("DBGS") && g_frames % 120 == 0) fprintf(stderr, "[estado] quadro %u substado=%x main=%x\n", g_frames, rd32(0x80057484), rd32(R[28] + 0x108));
     for (uint32_t k = 0; k < g_nshots; k++) if (g_frames == g_shots[k]) { char fn[64]; sprintf(fn, "shot_%u.ppm", g_frames); gpu_dump(fn); if (k == g_nshots - 1) gpu_dump_vram("vram.ppm"); gpu_info(); }
     if (g_frames >= g_maxf) { fprintf(stderr, "[frames] fim\n"); exit(0); }
@@ -265,6 +269,7 @@ int main(int argc, char** argv) {
         else if (!strcmp(argv[i], "--pular-video")) g_skipvid = 1;
         else if (!strcmp(argv[i], "--video")) g_skipvid = 0;
         else if (!strcmp(argv[i], "--janela")) g_win = 1;
+        else if (!strcmp(argv[i], "--estado") && i + 1 < argc) { char *a = argv[++i]; force_state = strtoul(a, &a, 16); if (*a == '@') force_at = atoi(a + 1); }
         else if (!strcmp(argv[i], "--start-at") && i + 1 < argc) pad_start_at = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) g_maxf = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--bin") && i + 1 < argc) hw_set_bin(argv[++i]);

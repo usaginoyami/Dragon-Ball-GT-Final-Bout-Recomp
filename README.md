@@ -104,3 +104,11 @@ Publique apenas a ferramenta (recomp.py + runtime).
 - Tentativas descartadas: reagendar setores com `now+periodo` e ordenar a fila de eventos deixaram o carregamento normal lento (head-of-line); não usar.
 - Depuração nova: DBGST=1 (parâmetros do StSetStream).
 - Pendente: XA (áudio dos vídeos) ainda não validado de ouvido; STEP02/STEP999; janela SDL em tela real.
+
+## Marco 16 — STEP02 e STEP999 validados
+
+- Novas ferramentas de depuração: `DBGSTATE=1` (transições de estado/substate), `TRACE_SUB=<hex>`, `explore.sh` e `--estado HEX@QUADRO`
+  (força a variável de estado 0x80034fdc e a flag de saída 0x80056878 do STEP01, para pular direto a outro overlay).
+- `--estado 20@700` carrega e executa o overlay STEP02 (fundo de rocha com o dragão); `--estado 50@700` executa o STEP999 (céu/nuvens). Nenhum "[nao traduzido]".
+- Pendente: a tela do torneio (STEP01 substate 0x218) não avança só com CROSS; o caminho normal até STEP02/STEP999 ainda não foi achado.
+- Às vezes aparece "CD timeout" ao forçar o estado (timing do CD com `--cd-turbo`); não reproduz em toda execução.
