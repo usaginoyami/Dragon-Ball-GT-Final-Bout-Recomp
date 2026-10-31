@@ -117,3 +117,7 @@ Publique apenas a ferramenta (recomp.py + runtime).
 - O "[travou] loop sem fim" que aparecia nos testes era o alarme padrão de 30 s do runtime. Use `ALARM=0` (ou um valor maior) em execuções longas.
 - `DBGSUB=1` (com `DBGSTATE=1`) imprime também o substate do STEP01 a cada mudança.
 - Tela do torneio: substate 0x218 é tratado por 80041d24. TRIANGLE leva a 0x219, que volta para 0x215; CROSS volta ao menu (0x20d). Esse caminho não chegou a STEP02/STEP999.
+
+### Reverb do SPU
+- `spu.c`: reverb padrão (22,05 kHz, buffer em `mBASE`, EON por voz, `vLOUT/vROUT`), ativado por SPUCNT bit 7. Testado no áudio do menu (ouvido, soa normal).
+- CD-DA não é necessário: a imagem do jogo tem uma única faixa de dados.
