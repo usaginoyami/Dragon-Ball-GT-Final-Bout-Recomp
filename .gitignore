@@ -1,0 +1,13 @@
+# Codigo gerado a partir do jogo e dados do disco: NAO publicar (direitos autorais)
+gen/
+*.o
+recomp_test
+*.bin
+*.BIN
+*.cue
+*.iso
+SLUS_*
+*.mcd
+*.ppm
+ram.bin
+*.zip
