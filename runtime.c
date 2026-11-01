@@ -338,7 +338,7 @@ static void (*overlay_find(uint32_t k))(void) {
         ov_active = -1;
         for (int i = 0; i < overlays_n; i++) {
             if (k < overlays[i].base || k >= overlays[i].base + overlays[i].size) continue;
-            if (fnv_ram(overlays[i].base, overlays[i].size) == overlays[i].hash) { ov_active = i; ov_valid = 1; fprintf(stderr, "[overlay] %s ativo\n", overlays[i].name); break; }
+            if (fnv_ram(overlays[i].base, overlays[i].size) == overlays[i].hash) { ov_active = i; ov_valid = 1; { extern uint32_t g_frames, g_mdec_frames; static double t0; if (!t0) t0 = now_s(); fprintf(stderr, "[overlay] %s ativo (quadro %u, %.1f s, %u quadros de video)\n", overlays[i].name, g_frames, now_s() - t0, g_mdec_frames); } break; }
         }
         if (ov_active < 0) return NULL;
     }
