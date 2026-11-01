@@ -121,3 +121,8 @@ Publique apenas a ferramenta (recomp.py + runtime).
 ### Reverb do SPU
 - `spu.c`: reverb padrão (22,05 kHz, buffer em `mBASE`, EON por voz, `vLOUT/vROUT`), ativado por SPUCNT bit 7. Testado no áudio do menu (ouvido, soa normal).
 - CD-DA não é necessário: a imagem do jogo tem uma única faixa de dados.
+
+### Windows, controles e memory card (Marco 16, fim)
+- Roda no Windows (MSYS2 MINGW64 + SDL2): janela, teclado, controle XInput (jogador 1 e 2) e audio. Veja `GUIA-PC.md`.
+- BIOS A0: libc do PsyQ agora emulada (strlen, strcpy, strcat, memcpy, memset, memcmp, rand/srand...). Antes devolvia 0 e quebrava o `sprintf` do nome do arquivo de save.
+- Memory card: API de arquivos da BIOS (open/read/write/close/firstfile/nextfile/erase/format) sobre `memcard1.mcd` (128 KB), eventos HwCARD e SwCARD. Save no Build-up testado pelo usuario: funciona.
