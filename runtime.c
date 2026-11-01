@@ -1,3 +1,4 @@
+#include "krom_font.h"
 #include "runtime.h"
 #include "overlay.h"
 #include <stdio.h>
@@ -308,6 +309,12 @@ static void bios_call(uint32_t tbl, uint32_t fn) {
         case 0x13: name = "StartPad"; break;
         case 0x56: name = "GetC0Table"; R[2] = 0x674; break;
         case 0x57: name = "GetB0Table"; R[2] = 0x874; break;
+        case 0x51: { name = "Krom2RawAdd"; uint32_t c = a0 & 0xffff, ch = '?';
+            if (c >= 0x824f && c <= 0x8258) ch = '0' + (c - 0x824f); else if (c >= 0x8260 && c <= 0x8279) ch = 'A' + (c - 0x8260); else if (c >= 0x8281 && c <= 0x829a) ch = 'a' + (c - 0x8281);
+            else if (c < 0x80) ch = c ? c : ' ';
+            else switch (c) { case 0x8140: ch = ' '; break; case 0x8143: ch = ','; break; case 0x8144: ch = '.'; break; case 0x8146: ch = ':'; break; case 0x8147: ch = ';'; break; case 0x8148: ch = '?'; break; case 0x8149: ch = '!'; break; case 0x815e: ch = '/'; break; case 0x817b: ch = '+'; break; case 0x817c: ch = '-'; break; case 0x8193: ch = '%'; break; case 0x8169: ch = '('; break; case 0x816a: ch = ')'; break; case 0x8195: ch = '&'; break; case 0x8163: ch = '.'; break; case 0x8181: ch = '='; break; case 0x819b: case 0x819c: ch = 'O'; break; case 0x817e: ch = 'X'; break; case 0x81a2: case 0x81a3: ch = '^'; break; case 0x81a0: case 0x819f: ch = '#'; break; }
+            if (ch < 0x20 || ch > 0x7e) ch = '?';
+            uint32_t dst = 0x80008000u + ((ch - 0x20) * 32u); for (int k = 0; k < 30; k++) wr8(dst + k, krom_font[ch - 0x20][k]); R[2] = dst; break; }
         case 0x4a: name = "InitCARD"; break;
         case 0x4b: name = "StartCARD"; break;
         default: break;
