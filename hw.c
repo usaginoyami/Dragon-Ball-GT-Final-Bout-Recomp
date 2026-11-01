@@ -79,8 +79,8 @@ static void cd_command(uint8_t c) {
         for (int i = 0; i < evn; ) { if (evq[i].sector) { memmove(&evq[i], &evq[i + 1], (--evn - i) * sizeof(Ev)); } else i++; }   /* nao duplica a cadeia de leitura */
         if (cd.setloc_pending) { cd.loc = cd.setloc; cd.setloc_pending = 0; }
         cd.reading = 1; ev_push1(0.0005, 3, cd.stat | 0x20);
-        ev_push1(0.05, 1, cd.stat | 0x20); evq[evn - 1].sector = 1; break;
-    case 0x09: {                                                                          /* Pause */
+        ev_push1((cd.mode & 0x40) ? 0.15 : 0.05, 1, cd.stat | 0x20); evq[evn - 1].sector = 1; break;   /* video/XA: latencia de busca maior (o jogo precisa preparar o decodificador antes do 1o setor) */   /* video/XA: latencia de busca realista (o jogo precisa preparar o decodificador antes do 1o setor) */
+    case 0x09: { if (getenv("DBGPAUSE")) { extern void dbg_ring(int); extern uint32_t g_frames; fprintf(stderr, "[pause] quadro %u\n", g_frames); dbg_ring(30); }
         ev_push1(0.0005, 3, st); cd.reading = 0; ev_push1(0.07, 2, cd.stat); break; }
     case 0x08: ev_push1(0.0005, 3, st); cd.reading = 0; ev_push1(0.03, 2, cd.stat); break; /* Stop */
     case 0x07: case 0x0a: ev_push1(0.0005, 3, st); ev_push1(0.03, 2, cd.stat); break;     /* MotorOn / Init */

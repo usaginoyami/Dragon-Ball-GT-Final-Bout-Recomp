@@ -286,7 +286,7 @@ static void bios_call(uint32_t tbl, uint32_t fn) {
         case 0x44: name = "FlushCache"; break;
         case 0x45: name = "init_a0_table"; break;
         case 0x57: name = "GetA0Table?"; R[2] = 0x200; break;
-        case 0x3f: name = "printf"; break;
+        case 0x3f: { name = "printf"; if (getenv("DBGPRINTF")) { extern uint32_t g_frames; char b[200]; int k = 0; while (k < 199 && rd8(a0 + k)) { b[k] = rd8(a0 + k); k++; } b[k] = 0; { char s1[40] = "", s2[40] = "", s3[40] = "", s4[40] = ""; uint32_t ar[4] = { a1, R[6], R[7], 0 }; char* sp[4] = { s1, s2, s3, s4 }; for (int q = 0; q < 3; q++) { int z = 0; if (ar[q] >= 0x80000000u && ar[q] < 0x80200000u) while (z < 39 && rd8(ar[q] + z) >= 32 && rd8(ar[q] + z) < 127) { sp[q][z] = rd8(ar[q] + z); z++; } sp[q][z] = 0; } fprintf(stderr, "[printf] quadro %u: %s :: [%s] [%s] [%s]\n", g_frames, b, s1, s2, s3); } } break; }
         default: break;
     } else if (tbl == 0xb0) switch (fn) {
         case 0x08: { name = "OpenEvent"; if (a0 == 0xf4000001u || a0 == 0xf0000011u) fprintf(stderr, "[card] OpenEvent cls=%08x spec=%x modo=%x func=%08x\n", a0, a1, R[6], R[7]); R[2] = next_event++; int i = R[2] & 63; kev[i].cls = a0; kev[i].spec = a1; kev[i].used = 1; kev[i].delivered = 0; break; }
