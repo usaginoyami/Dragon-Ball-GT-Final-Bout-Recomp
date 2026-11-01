@@ -104,3 +104,25 @@ Publique apenas a ferramenta (recomp.py + runtime).
 - Tentativas descartadas: reagendar setores com `now+periodo` e ordenar a fila de eventos deixaram o carregamento normal lento (head-of-line); não usar.
 - Depuração nova: DBGST=1 (parâmetros do StSetStream).
 - Pendente: XA (áudio dos vídeos) ainda não validado de ouvido; STEP02/STEP999; janela SDL em tela real.
+
+## Marco 16 — STEP02 e STEP999 validados
+
+- Novas ferramentas de depuração: `DBGSTATE=1` (transições de estado/substate), `TRACE_SUB=<hex>`, `explore.sh` e `--estado HEX@QUADRO`
+  (força a variável de estado 0x80034fdc e a flag de saída 0x80056878 do STEP01, para pular direto a outro overlay).
+- `--estado 20@700` carrega e executa o overlay STEP02 (fundo de rocha com o dragão); `--estado 50@700` executa o STEP999 (céu/nuvens). Nenhum "[nao traduzido]".
+- Pendente: a tela do torneio (STEP01 substate 0x218) não avança só com CROSS; o caminho normal até STEP02/STEP999 ainda não foi achado.
+- Às vezes aparece "CD timeout" ao forçar o estado (timing do CD com `--cd-turbo`); não reproduz em toda execução.
+
+### Notas de exploração (Marco 16, continuação)
+- O "[travou] loop sem fim" que aparecia nos testes era o alarme padrão de 30 s do runtime. Use `ALARM=0` (ou um valor maior) em execuções longas.
+- `DBGSUB=1` (com `DBGSTATE=1`) imprime também o substate do STEP01 a cada mudança.
+- Tela do torneio: substate 0x218 é tratado por 80041d24. TRIANGLE leva a 0x219, que volta para 0x215; CROSS volta ao menu (0x20d). Esse caminho não chegou a STEP02/STEP999.
+
+### Reverb do SPU
+- `spu.c`: reverb padrão (22,05 kHz, buffer em `mBASE`, EON por voz, `vLOUT/vROUT`), ativado por SPUCNT bit 7. Testado no áudio do menu (ouvido, soa normal).
+- CD-DA não é necessário: a imagem do jogo tem uma única faixa de dados.
+
+### Windows, controles e memory card (Marco 16, fim)
+- Roda no Windows (MSYS2 MINGW64 + SDL2): janela, teclado, controle XInput (jogador 1 e 2) e audio. Veja `GUIA-PC.md`.
+- BIOS A0: libc do PsyQ agora emulada (strlen, strcpy, strcat, memcpy, memset, memcmp, rand/srand...). Antes devolvia 0 e quebrava o `sprintf` do nome do arquivo de save.
+- Memory card: API de arquivos da BIOS (open/read/write/close/firstfile/nextfile/erase/format) sobre `memcard1.mcd` (128 KB), eventos HwCARD e SwCARD. Save no Build-up testado pelo usuario: funciona.

@@ -85,10 +85,58 @@ static void env_step(Voice* v, int n) {
 int xa_mix(int*, int*);
 static int vol_of(uint16_t r) { if (r & 0x8000) return 0x3fff; return (int16_t)(r << 1) >> 1; }  /* modo sweep: aproximado */
 
+
+/* ---- Reverb (algoritmo nocash): roda a 22050 Hz, buffer em spu_ram a partir de mBASE ---- */
+static uint32_t rv_cur;          /* ponteiro relativo (bytes) dentro do buffer */
+static int rv_lout, rv_rout;     /* ultima saida (mantida entre amostras) */
+static int rv_odd;
+#define RV(o) ((int16_t)R((o) / 2))
+static int rv_vol(int16_t x, int v) { return (v * x) >> 15; }
+static uint32_t rv_addr(uint32_t off_reg_val, int extra) {   /* off_reg_val em unidades de 8 bytes */
+    uint32_t base = (uint32_t)R(0x1a2 / 2) * 8; if (base >= SPU_RAM_SIZE) base = SPU_RAM_SIZE - 2;
+    uint32_t span = SPU_RAM_SIZE - base; if (!span) span = 2;
+    uint32_t rel = (rv_cur + off_reg_val * 8 + (uint32_t)(int32_t)extra) % span;
+    return base + (rel & ~1u);
+}
+static int rv_rd(uint32_t offreg, int extra) { uint32_t a = rv_addr(offreg, extra); return (int16_t)(spu_ram[a] | (spu_ram[a + 1] << 8)); }
+static void rv_wr(uint32_t offreg, int v) {
+    uint32_t a = rv_addr(offreg, 0); if (v > 32767) v = 32767; if (v < -32768) v = -32768;
+    spu_ram[a] = v & 255; spu_ram[a + 1] = (v >> 8) & 255;
+}
+static int clamp16(int v) { return v > 32767 ? 32767 : v < -32768 ? -32768 : v; }
+static void reverb_step(int inl, int inr, int enable) {
+    if (rv_odd ^= 1) {   /* a cada 2 amostras (44.1k -> 22.05k) */
+        int vIIR = RV(0x1c4), vWALL = RV(0x1ce), vAPF1 = RV(0x1d0), vAPF2 = RV(0x1d2);
+        int Lin = rv_vol(inl, RV(0x1fc)), Rin = rv_vol(inr, RV(0x1fe));
+        #define RR(o) ((uint32_t)R((o) / 2))
+        if (enable) {
+            int p;
+            p = rv_rd(RR(0x1d4), -2); rv_wr(RR(0x1d4), clamp16(rv_vol(clamp16(Lin + rv_vol(rv_rd(RR(0x1e0), 0), vWALL) - p), vIIR) + p));
+            p = rv_rd(RR(0x1d6), -2); rv_wr(RR(0x1d6), clamp16(rv_vol(clamp16(Rin + rv_vol(rv_rd(RR(0x1e2), 0), vWALL) - p), vIIR) + p));
+            p = rv_rd(RR(0x1e4), -2); rv_wr(RR(0x1e4), clamp16(rv_vol(clamp16(Lin + rv_vol(rv_rd(RR(0x1f2), 0), vWALL) - p), vIIR) + p));   /* dRDIFF */
+            p = rv_rd(RR(0x1e6), -2); rv_wr(RR(0x1e6), clamp16(rv_vol(clamp16(Rin + rv_vol(rv_rd(RR(0x1f0), 0), vWALL) - p), vIIR) + p));            /* dLDIFF */
+        }
+        int Lo = rv_vol(rv_rd(RR(0x1d8), 0), RV(0x1c6)) + rv_vol(rv_rd(RR(0x1dc), 0), RV(0x1c8)) + rv_vol(rv_rd(RR(0x1e8), 0), RV(0x1ca)) + rv_vol(rv_rd(RR(0x1ec), 0), RV(0x1cc));
+        int Ro = rv_vol(rv_rd(RR(0x1da), 0), RV(0x1c6)) + rv_vol(rv_rd(RR(0x1de), 0), RV(0x1c8)) + rv_vol(rv_rd(RR(0x1ea), 0), RV(0x1ca)) + rv_vol(rv_rd(RR(0x1ee), 0), RV(0x1cc));
+        Lo = clamp16(Lo); Ro = clamp16(Ro);
+        int a1 = rv_rd(RR(0x1f4), -(int)(RR(0x1c0) * 8)), b1 = rv_rd(RR(0x1f6), -(int)(RR(0x1c0) * 8));
+        Lo = clamp16(Lo - rv_vol(a1, vAPF1)); Ro = clamp16(Ro - rv_vol(b1, vAPF1));
+        if (enable) { rv_wr(RR(0x1f4), Lo); rv_wr(RR(0x1f6), Ro); }
+        Lo = clamp16(rv_vol(Lo, vAPF1) + a1); Ro = clamp16(rv_vol(Ro, vAPF1) + b1);
+        int a2 = rv_rd(RR(0x1f8), -(int)(RR(0x1c2) * 8)), b2 = rv_rd(RR(0x1fa), -(int)(RR(0x1c2) * 8));
+        Lo = clamp16(Lo - rv_vol(a2, vAPF2)); Ro = clamp16(Ro - rv_vol(b2, vAPF2));
+        if (enable) { rv_wr(RR(0x1f8), Lo); rv_wr(RR(0x1fa), Ro); }
+        Lo = clamp16(rv_vol(Lo, vAPF2) + a2); Ro = clamp16(rv_vol(Ro, vAPF2) + b2);
+        rv_lout = Lo; rv_rout = Ro;
+        uint32_t base = (uint32_t)R(0x1a2 / 2) * 8, span = SPU_RAM_SIZE - (base < SPU_RAM_SIZE ? base : 0);
+        rv_cur = (rv_cur + 2) % (span ? span : 2);
+    }
+}
+
 void spu_mix(int16_t* out, int n) {   /* n pares estereo */
     int ctrl = R(0x1aa / 2);
     for (int i = 0; i < n; i++) {
-        int64_t l = 0, r = 0;
+        int64_t l = 0, r = 0; int rvl = 0, rvr = 0; uint32_t eon = R(0x198 / 2) | ((uint32_t)R(0x19a / 2) << 16);
         for (int k = 0; k < 24; k++) {
             Voice* v = &vo[k];
             if (!v->on) continue;
@@ -99,8 +147,7 @@ void spu_mix(int16_t* out, int n) {   /* n pares estereo */
             env_step(v, k);
             int e = v->env;
             smp = (smp * e) >> 15;
-            l += (smp * vol_of(VREG(k, 0))) >> 14;
-            r += (smp * vol_of(VREG(k, 2))) >> 14;
+            { int vl = (smp * vol_of(VREG(k, 0))) >> 14, vr = (smp * vol_of(VREG(k, 2))) >> 14; l += vl; r += vr; if (eon & (1u << k)) { rvl += vl; rvr += vr; } }
             int pitch = VREG(k, 4); if (pitch > 0x3fff) pitch = 0x3fff;
             v->counter += pitch;
             if ((v->counter >> 12) >= 28) {
@@ -113,6 +160,8 @@ void spu_mix(int16_t* out, int n) {   /* n pares estereo */
         }
         int ml = vol_of(R(0x180 / 2)), mr = vol_of(R(0x182 / 2));
         l = (l * ml) >> 14; r = (r * mr) >> 14;
+        reverb_step(clamp16(rvl), clamp16(rvr), (ctrl & 0x80) != 0);
+        if (ctrl & 0x80) { l += (rv_lout * vol_of(R(0x184 / 2))) >> 15; r += (rv_rout * vol_of(R(0x186 / 2))) >> 15; }
         if (!(ctrl & 0x8000) || !(ctrl & 0x4000)) l = r = 0;
         { int xl, xr; if (xa_mix(&xl, &xr) && (ctrl & 1)) { l += (xl * vol_of(R(0x1b0 / 2))) >> 14; r += (xr * vol_of(R(0x1b2 / 2))) >> 14; } }
         if (l > 32767) l = 32767; if (l < -32768) l = -32768;
