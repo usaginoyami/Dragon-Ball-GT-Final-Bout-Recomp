@@ -231,6 +231,7 @@ static int mc_rw(int fd, uint32_t buf, int n, int write) {
 }
 static void kev_deliver(uint32_t cls, uint32_t spec) { for (int i = 0; i < 64; i++) if (kev[i].used && kev[i].cls == cls && kev[i].spec == spec) kev[i].delivered = 1; }
 static int card_class(uint32_t c) { return c == 0xf4000001u || c == 0xf0000011u; }
+uint32_t g_rand = 1;
 static void bios_call(uint32_t tbl, uint32_t fn);
 static void init_kernel_tables(void) {
     for (uint32_t i = 0; i < 0xc0; i++) wr32(0x200 + i * 4, 0xbfc00000u | (0xa0u << 8) | i);
@@ -250,6 +251,29 @@ static void bios_call(uint32_t tbl, uint32_t fn) {
         case 0xab: { name = "_card_info"; mc_load(); int slot = (a0 & 0x10) ? 1 : 0;
             if (slot) kev_deliver(0xf4000001u, 0x0100); else if (mc_new) kev_deliver(0xf4000001u, 0x2000); else kev_deliver(0xf4000001u, 0x0004); R[2] = 1; break; }
         case 0xac: { name = "_card_load"; mc_load(); if (a0 & 0x10) kev_deliver(0xf4000001u, 0x0100); else { mc_new = 0; kev_deliver(0xf4000001u, 0x0004); } R[2] = 1; break; }
+        /* ---- libc da BIOS (o PsyQ chama estas funcoes por A0) ---- */
+        case 0x0a: name = "abs"; R[2] = (int32_t)a0 < 0 ? -(int32_t)a0 : a0; break;
+        case 0x0c: case 0x0d: { name = "atoi"; int sg = 1; uint32_t p = a0; while (rd8(p) == ' ') p++; if (rd8(p) == '-') { sg = -1; p++; } else if (rd8(p) == '+') p++; int32_t v = 0; while (rd8(p) >= '0' && rd8(p) <= '9') v = v * 10 + (int)(rd8(p++) - '0'); R[2] = (uint32_t)(v * sg); break; }
+        case 0x15: { name = "strcat"; uint32_t d = a0; while (rd8(d)) d++; uint32_t sp = a1; for (;;) { uint32_t c = rd8(sp++); wr8(d++, c); if (!c) break; } R[2] = a0; break; }
+        case 0x16: { name = "strncat"; uint32_t d = a0; while (rd8(d)) d++; uint32_t sp = a1, n = R[6]; while (n--) { uint32_t c = rd8(sp++); if (!c) break; wr8(d++, c); } wr8(d, 0); R[2] = a0; break; }
+        case 0x17: { name = "strcmp"; uint32_t p = a0, q = a1; int r = 0; for (;;) { int x = (int)rd8(p++), y = (int)rd8(q++); if (x != y) { r = x - y; break; } if (!x) break; } R[2] = (uint32_t)r; break; }
+        case 0x18: { name = "strncmp"; uint32_t p = a0, q = a1, n = R[6]; int r = 0; while (n--) { int x = (int)rd8(p++), y = (int)rd8(q++); if (x != y) { r = x - y; break; } if (!x) break; } R[2] = (uint32_t)r; break; }
+        case 0x19: { name = "strcpy"; uint32_t d = a0, sp = a1; for (;;) { uint32_t c = rd8(sp++); wr8(d++, c); if (!c) break; } R[2] = a0; break; }
+        case 0x1a: { name = "strncpy"; uint32_t d = a0, sp = a1, n = R[6]; int end = 0; while (n--) { uint32_t c = end ? 0 : rd8(sp++); if (!c) end = 1; wr8(d++, c); } R[2] = a0; break; }
+        case 0x1b: { name = "strlen"; uint32_t n = 0; while (rd8(a0 + n)) n++; R[2] = n; break; }
+        case 0x1c: case 0x1e: { name = "strchr"; uint32_t p = a0; R[2] = 0; for (;;) { uint32_t c = rd8(p); if (c == (a1 & 0xff)) { R[2] = p; break; } if (!c) break; p++; } break; }
+        case 0x1d: case 0x1f: { name = "strrchr"; uint32_t p = a0, r = 0; for (;;) { uint32_t c = rd8(p); if (c == (a1 & 0xff)) r = p; if (!c) break; p++; } R[2] = r; break; }
+        case 0x25: name = "toupper"; R[2] = (a0 >= 'a' && a0 <= 'z') ? a0 - 32 : a0; break;
+        case 0x26: name = "tolower"; R[2] = (a0 >= 'A' && a0 <= 'Z') ? a0 + 32 : a0; break;
+        case 0x27: { name = "bcopy"; uint32_t n = R[6]; if (a1 <= a0 || a1 >= a0 + n) for (uint32_t i = 0; i < n; i++) wr8(a1 + i, rd8(a0 + i)); else for (uint32_t i = n; i-- > 0;) wr8(a1 + i, rd8(a0 + i)); break; }
+        case 0x28: { name = "bzero"; for (uint32_t i = 0; i < a1; i++) wr8(a0 + i, 0); break; }
+        case 0x29: { name = "bcmp"; int r = 0; for (uint32_t i = 0; i < R[6]; i++) { int x = (int)rd8(a0 + i), y = (int)rd8(a1 + i); if (x != y) { r = x - y; break; } } R[2] = (uint32_t)r; break; }
+        case 0x2a: case 0x2c: { name = "memcpy"; uint32_t n = R[6]; if (a0 <= a1 || a0 >= a1 + n) for (uint32_t i = 0; i < n; i++) wr8(a0 + i, rd8(a1 + i)); else for (uint32_t i = n; i-- > 0;) wr8(a0 + i, rd8(a1 + i)); R[2] = a0; break; }
+        case 0x2b: { name = "memset"; for (uint32_t i = 0; i < R[6]; i++) wr8(a0 + i, a1 & 0xff); R[2] = a0; break; }
+        case 0x2d: { name = "memcmp"; int r = 0; for (uint32_t i = 0; i < R[6]; i++) { int x = (int)rd8(a0 + i), y = (int)rd8(a1 + i); if (x != y) { r = x - y; break; } } R[2] = (uint32_t)r; break; }
+        case 0x2e: { name = "memchr"; R[2] = 0; for (uint32_t i = 0; i < R[6]; i++) if (rd8(a0 + i) == (a1 & 0xff)) { R[2] = a0 + i; break; } break; }
+        case 0x2f: { name = "rand"; static uint32_t seed = 1; (void)seed; extern uint32_t g_rand; g_rand = g_rand * 0x41c64e6du + 0x3039u; R[2] = (g_rand >> 16) & 0x7fff; break; }
+        case 0x30: { name = "srand"; extern uint32_t g_rand; g_rand = a0; break; }
         case 0x44: name = "FlushCache"; break;
         case 0x45: name = "init_a0_table"; break;
         case 0x57: name = "GetA0Table?"; R[2] = 0x200; break;
@@ -363,6 +387,13 @@ atexit(mc_flush);
     (void)on_alarm;   /* Windows nao tem SIGALRM/alarm: sem watchdog */
 #endif
     fprintf(stderr, "[inicio] entry=%08x\n", pc);
+    if (getenv("TEST_SPRINTF")) {   /* teste: sprintf(buf, "%s-%02u%X", buf, 0, 0) com buf = "bu00:BASLUS-00493" */
+        const char* nm = "bu00:BASLUS-00493"; const char* fm = "%s-%02u%X"; uint32_t b = 0x80100000;
+        for (int i = 0; i <= 17; i++) wr8(b + i, nm[i]); for (int i = 0; i <= 9; i++) wr8(0x80100100 + i, fm[i]);
+        R[29] = 0x801f0000; R[4] = b; R[5] = 0x80100100; R[6] = b; R[7] = 0; wr32(R[29] + 16, 0); R[31] = 0;
+        call_addr(0x8002a9a8);
+        char o[64]; for (int i = 0; i < 63; i++) o[i] = (char)rd8(b + i); o[63] = 0; fprintf(stderr, "[teste sprintf] resultado=\"%s\"\n", o); return 0;
+    }
     call_addr(pc);
     fprintf(stderr, "[fim] entry retornou. chamadas=%llu\n", (unsigned long long)g_calls);
     return 0;
