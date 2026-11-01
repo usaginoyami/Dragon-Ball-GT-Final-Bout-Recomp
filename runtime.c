@@ -192,15 +192,16 @@ static void mc_fill_dirent(uint32_t d, int slot) {
 }
 static int mc_open(uint32_t pathp, uint32_t mode) {
     mc_load(); char p[48]; mc_name(pathp, p, sizeof p);
-    if (strncmp(p, "bu00", 4)) return -1;
+    fprintf(stderr, "[mcard] open \"%s\" modo=%x\n", p, mode);
+    if (strncmp(p, "bu00", 4)) { fprintf(stderr, "[mcard] open: cartao nao e bu00\n"); return -1; }
     const char* nm = mc_path(p); int slot = mc_find_first(nm, 1);
-    int fd = -1; for (int i = 0; i < 16; i++) if (!mcfd[i].used) { fd = i; break; } if (fd < 0) return -1;
+    int fd = -1; for (int i = 0; i < 16; i++) if (!mcfd[i].used) { fd = i; break; } if (fd < 0) { fprintf(stderr, "[mcard] open: sem fd livre\n"); return -1; }
     McFd* f = &mcfd[fd]; memset(f, 0, sizeof *f);
     if (!slot) {
-        if (!(mode & 0x200)) return -1;
+        if (!(mode & 0x200)) { fprintf(stderr, "[mcard] open: arquivo nao existe e sem O_CREAT\n"); return -1; }
         int nb = (mode >> 16) & 15; if (nb < 1) nb = 1; int got = 0, sl[15];
         for (int i = 1; i < 16 && got < nb; i++) if (mc[i * 128] == 0xa0 || mc[i * 128] == 0xa1 || mc[i * 128] == 0xa2 || mc[i * 128] == 0xa3) sl[got++] = i;
-        if (got < nb) return -1;
+        if (got < nb) { fprintf(stderr, "[mcard] open: sem blocos livres (%d de %d)\n", got, nb); return -1; }
         for (int k = 0; k < nb; k++) {
             uint8_t* e = mc + sl[k] * 128; memset(e, 0, 128);
             e[0] = nb == 1 || k == 0 ? 0x51 : (k == nb - 1 ? 0x53 : 0x52); if (nb > 1 && k == 0) e[0] = 0x51;
@@ -213,10 +214,11 @@ static int mc_open(uint32_t pathp, uint32_t mode) {
         slot = sl[0]; mc_dirty = 1;
     }
     f->nblk = mc_chain(slot, f->chain); f->used = 1; f->wr = (mode & 2) != 0;
+    fprintf(stderr, "[mcard] open ok fd=%d slot=%d blocos=%d\n", fd, slot, f->nblk);
     return fd;
 }
 static int mc_rw(int fd, uint32_t buf, int n, int write) {
-    if (fd < 0 || fd > 15 || !mcfd[fd].used) return -1; McFd* f = &mcfd[fd]; int done = 0;
+    if (fd < 0 || fd > 15 || !mcfd[fd].used) { fprintf(stderr, "[mcard] %s: fd invalido %d\n", write ? "write" : "read", fd); return -1; } McFd* f = &mcfd[fd]; int done = 0;
     int total = f->nblk * 8192;
     while (done < n && f->pos < total) {
         int blk = f->pos / 8192, off = f->pos % 8192; uint8_t* d = mc + f->chain[blk] * 8192 + off;
@@ -224,6 +226,7 @@ static int mc_rw(int fd, uint32_t buf, int n, int write) {
         f->pos++; done++;
     }
     if (write && done) mc_dirty = 1;
+    fprintf(stderr, "[mcard] %s fd=%d pedido=%d feito=%d\n", write ? "write" : "read", fd, n, done);
     return done;
 }
 static void kev_deliver(uint32_t cls, uint32_t spec) { for (int i = 0; i < 64; i++) if (kev[i].used && kev[i].cls == cls && kev[i].spec == spec) kev[i].delivered = 1; }
