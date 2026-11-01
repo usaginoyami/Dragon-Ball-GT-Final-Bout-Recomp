@@ -1,5 +1,6 @@
 /* MDEC do PS1: decodificador de macroblocos (RLE + dequant + IDCT + YUV->RGB) */
 #include <stdint.h>
+uint32_t g_mdec_frames;
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -88,7 +89,7 @@ void mdec_cmd_write(uint32_t w) {
     if (state == 1) {
         if (ilen + 2 > icap) { icap = (ilen + 2) * 2; ibuf = realloc(ibuf, icap * 2); }
         ibuf[ilen++] = w & 0xffff; ibuf[ilen++] = w >> 16;
-        if (--remain == 0) { state = 0; decode_all(); if (getenv("MDECLOG")) { unsigned long long s = 0; for (unsigned q = 0; q < olen; q++) s += obuf[q]; { extern uint32_t g_frames; fprintf(stderr, "[mdec] quadro=%u ", g_frames); } fprintf(stderr, "[mdec] frame decodificado: %u halfwords -> %u bytes (depth %d) media=%.1f\n", ilen, olen, depth, olen ? (double)s / olen : 0.0); } }
+        if (--remain == 0) { state = 0; g_mdec_frames++; decode_all(); if (getenv("MDECLOG")) { unsigned long long s = 0; for (unsigned q = 0; q < olen; q++) s += obuf[q]; { extern uint32_t g_frames; fprintf(stderr, "[mdec] quadro=%u ", g_frames); } fprintf(stderr, "[mdec] frame decodificado: %u halfwords -> %u bytes (depth %d) media=%.1f\n", ilen, olen, depth, olen ? (double)s / olen : 0.0); } }
     } else if (state == 2) {
         uint8_t* t = qcount < 16 ? qy : qc; uint32_t o = (qcount & 15) * 4;
         for (int k = 0; k < 4; k++) t[o + k] = (w >> (8 * k)) & 255;

@@ -53,18 +53,20 @@ static struct {
 } cd;
 void hw_set_bin(const char* p) { cd.bin = fopen(p, "rb"); if (!cd.bin) fprintf(stderr, "[cd] nao consegui abrir %s\n", p); cd.stat = 0x02; }
 
-static double cd_speed = 1.0;
+static double cd_speed = 1.0; static double mdec_last = -10;
+static double cur_speed(void);
 void hw_set_speed(double s) { if (s >= 1) cd_speed = s; }
 static void ev_bubble(void) { for (int i = evn - 1; i > 0 && evq[i - 1].t > evq[i].t; i--) { Ev tmp = evq[i - 1]; evq[i - 1] = evq[i]; evq[i] = tmp; } }
 static void ev_push(double dt, int intr, const uint8_t* r, int n, int sector) {
     if (evn >= MAXEV) return;
-    Ev* e = &evq[evn++]; e->t = now_s() + dt / cd_speed; e->intr = intr; e->n = n; e->sector = sector;
+    Ev* e = &evq[evn++]; e->t = now_s() + dt / cur_speed(); e->intr = intr; e->n = n; e->sector = sector;
     if (n) memcpy(e->resp, r, n);
 }
 static void ev_push1(double dt, int intr, uint8_t b) { ev_push(dt, intr, &b, 1, 0); }
 static int bcd(int v) { return ((v / 10) << 4) | (v % 10); }
 static int unbcd(int v) { return (v >> 4) * 10 + (v & 15); }
-static double sector_period(void) { return ((cd.mode & 0x80) ? 1.0 / 150 : 1.0 / 75) / cd_speed; }
+static double cur_speed(void) { return (cd.mode & 0x40) ? 1.0 : cd_speed; }   /* video/XA (modo 0x40) roda em velocidade real; turbo so para carregamentos */
+static double sector_period(void) { return ((cd.mode & 0x80) ? 1.0 / 150 : 1.0 / 75) / cur_speed(); }
 
 static void cd_command(uint8_t c) {
     uint8_t* p = cd.par; uint8_t st = cd.stat | (cd.reading ? 0x20 : 0);
@@ -77,8 +79,8 @@ static void cd_command(uint8_t c) {
         for (int i = 0; i < evn; ) { if (evq[i].sector) { memmove(&evq[i], &evq[i + 1], (--evn - i) * sizeof(Ev)); } else i++; }   /* nao duplica a cadeia de leitura */
         if (cd.setloc_pending) { cd.loc = cd.setloc; cd.setloc_pending = 0; }
         cd.reading = 1; ev_push1(0.0005, 3, cd.stat | 0x20);
-        ev_push1(0.05, 1, cd.stat | 0x20); evq[evn - 1].sector = 1; break;
-    case 0x09: {                                                                          /* Pause */
+        ev_push1((cd.mode & 0x40) ? 0.15 : 0.05, 1, cd.stat | 0x20); evq[evn - 1].sector = 1; break;   /* video/XA: latencia de busca maior (o jogo precisa preparar o decodificador antes do 1o setor) */   /* video/XA: latencia de busca realista (o jogo precisa preparar o decodificador antes do 1o setor) */
+    case 0x09: { if (getenv("DBGPAUSE")) { extern void dbg_ring(int); extern uint32_t g_frames; fprintf(stderr, "[pause] quadro %u\n", g_frames); dbg_ring(30); }
         ev_push1(0.0005, 3, st); cd.reading = 0; ev_push1(0.07, 2, cd.stat); break; }
     case 0x08: ev_push1(0.0005, 3, st); cd.reading = 0; ev_push1(0.03, 2, cd.stat); break; /* Stop */
     case 0x07: case 0x0a: ev_push1(0.0005, 3, st); ev_push1(0.03, 2, cd.stat); break;     /* MotorOn / Init */
@@ -178,7 +180,7 @@ static void dma_run(int ch) {
     uint32_t words = sync == 0 ? (bcr & 0xffff ? bcr & 0xffff : 0x10000) : (bcr & 0xffff) * (bcr >> 16);
     if (hw_verbose && ch == 3) fprintf(stderr, "[dma3] CD -> RAM %08x, %u bytes\n", madr | 0x80000000, words * 4);
     if (ch == 3 && madr < 0x60000 && madr + words * 4 > 0x3df00) overlay_invalidate();   /* so se o DMA cai na area de overlays */
-    if (ch == 0 || ch == 1) { if (ch == 0) mdec_dma_in(madr, words); else mdec_dma_out(madr, words); io_store(base + 8, 4, chcr & ~((1u << 24) | (1u << 28))); dma_done(ch); return; }
+    if (ch == 0 || ch == 1) { if (ch == 0) { mdec_last = now_s(); mdec_dma_in(madr, words); } else mdec_dma_out(madr, words); io_store(base + 8, 4, chcr & ~((1u << 24) | (1u << 28))); dma_done(ch); return; }
     if (ch == 4) { spu_dma(madr, words, chcr & 1); io_store(base + 8, 4, chcr & ~((1u << 24) | (1u << 28))); dma_done(4); return; }
     if (ch == 2) { gpu_dma(madr, bcr, chcr); io_store(base + 8, 4, chcr & ~((1u << 24) | (1u << 28))); dma_done(2); return; }
     if (ch == 3) {                                      /* CD -> RAM */

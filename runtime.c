@@ -72,7 +72,15 @@ void cop0_wr(int r, uint32_t v) { cop0[r] = v; }
 
 /* ---- ganchos HLE: substituem funcoes da biblioteca Sony por versoes em C ---- */
 static uint32_t g_vcount;
+#ifdef _WIN32
+#include <windows.h>
+#include <mmsystem.h>
+double now_s(void) { static LARGE_INTEGER f; LARGE_INTEGER c; if (!f.QuadPart) QueryPerformanceFrequency(&f); QueryPerformanceCounter(&c); return (double)c.QuadPart / (double)f.QuadPart; }   /* relogio de alta resolucao (clock_gettime no Windows pode ser grosseiro: ~15 ms) */
+static void win_usleep(unsigned us) { if (us >= 400) { Sleep(1); return; } double t = now_s() + us * 1e-6; while (now_s() < t) YieldProcessor(); }   /* usleep do Windows tem granularidade de ~15 ms: quebrava o ritmo dos setores do CD (video) */
+#define usleep(x) win_usleep(x)
+#else
 double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec * 1e-9; }
+#endif
 static double g_t0; static uint32_t vblank_count(void) { if (!g_t0) g_t0 = now_s(); return (uint32_t)((now_s() - g_t0) * 59.94); }
 static uint32_t g_vcb; static int in_cb; static uint32_t last_disp;
 void hw_set_speed(double); void spu_mix(int16_t*, int); int audio_queued(void); void audio_push(const int16_t*, int);
@@ -131,7 +139,7 @@ static void run_vblank(void) {
 }
 static void wait_vblank(void) { uint32_t c = vblank_count(); while (vblank_count() == c) usleep(500); run_vblank(); }
 static int hle_log;
-static int ov_active = -1; static int g_skipvid = 1;
+static int ov_active = -1; static int g_skipvid = 0;
 int hle_hook(uint32_t a) {
     switch (a) {
     case 0x8003e14c: /* STEP00: init do video LOGO.STR -> pula (finge que terminou) */
@@ -278,7 +286,7 @@ static void bios_call(uint32_t tbl, uint32_t fn) {
         case 0x44: name = "FlushCache"; break;
         case 0x45: name = "init_a0_table"; break;
         case 0x57: name = "GetA0Table?"; R[2] = 0x200; break;
-        case 0x3f: name = "printf"; break;
+        case 0x3f: { name = "printf"; if (getenv("DBGPRINTF")) { extern uint32_t g_frames; char b[200]; int k = 0; while (k < 199 && rd8(a0 + k)) { b[k] = rd8(a0 + k); k++; } b[k] = 0; { char s1[40] = "", s2[40] = "", s3[40] = "", s4[40] = ""; uint32_t ar[4] = { a1, R[6], R[7], 0 }; char* sp[4] = { s1, s2, s3, s4 }; for (int q = 0; q < 3; q++) { int z = 0; if (ar[q] >= 0x80000000u && ar[q] < 0x80200000u) while (z < 39 && rd8(ar[q] + z) >= 32 && rd8(ar[q] + z) < 127) { sp[q][z] = rd8(ar[q] + z); z++; } sp[q][z] = 0; } fprintf(stderr, "[printf] quadro %u: %s :: [%s] [%s] [%s]\n", g_frames, b, s1, s2, s3); } } break; }
         default: break;
     } else if (tbl == 0xb0) switch (fn) {
         case 0x08: { name = "OpenEvent"; if (a0 == 0xf4000001u || a0 == 0xf0000011u) fprintf(stderr, "[card] OpenEvent cls=%08x spec=%x modo=%x func=%08x\n", a0, a1, R[6], R[7]); R[2] = next_event++; int i = R[2] & 63; kev[i].cls = a0; kev[i].spec = a1; kev[i].used = 1; kev[i].delivered = 0; break; }
@@ -323,7 +331,7 @@ static void bios_call(uint32_t tbl, uint32_t fn) {
         case 0x02: name = "SysEnqIntRP"; break;
         default: break;
     }
-    fprintf(stderr, "[bios] %02x:%02x %s(%08x, %08x)\n", tbl & 0xff, fn, name, a0, a1);
+    { static int bl = -1; if (bl < 0) bl = getenv("BIOSLOG") != NULL; if (g_verbose || bl) fprintf(stderr, "[bios] %02x:%02x %s(%08x, %08x)\n", tbl & 0xff, fn, name, a0, a1); }
 }
 
 static int ov_valid;
@@ -338,7 +346,7 @@ static void (*overlay_find(uint32_t k))(void) {
         ov_active = -1;
         for (int i = 0; i < overlays_n; i++) {
             if (k < overlays[i].base || k >= overlays[i].base + overlays[i].size) continue;
-            if (fnv_ram(overlays[i].base, overlays[i].size) == overlays[i].hash) { ov_active = i; ov_valid = 1; fprintf(stderr, "[overlay] %s ativo\n", overlays[i].name); break; }
+            if (fnv_ram(overlays[i].base, overlays[i].size) == overlays[i].hash) { ov_active = i; ov_valid = 1; { extern uint32_t g_frames, g_mdec_frames; static double t0; if (!t0) t0 = now_s(); fprintf(stderr, "[overlay] %s ativo (quadro %u, %.1f s, %u quadros de video)\n", overlays[i].name, g_frames, now_s() - t0, g_mdec_frames); } break; }
         }
         if (ov_active < 0) return NULL;
     }
@@ -364,6 +372,9 @@ void call_addr(uint32_t a) {
 
 extern void func_entry_dummy(void);
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
     if (argc < 2) { fprintf(stderr, "uso: %s SLUS_004.93 [-v]\n", argv[0]); return 1; }
     FILE* f = fopen(argv[1], "rb"); if (!f) { perror("exe"); return 1; }
     uint8_t h[0x800]; if (fread(h, 1, 0x800, f) != 0x800) return 1;
