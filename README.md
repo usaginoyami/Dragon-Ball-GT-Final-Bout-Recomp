@@ -110,7 +110,7 @@ Publique apenas a ferramenta (recomp.py + runtime).
 - Novas ferramentas de depuração: `DBGSTATE=1` (transições de estado/substate), `TRACE_SUB=<hex>`, `explore.sh` e `--estado HEX@QUADRO`
   (força a variável de estado 0x80034fdc e a flag de saída 0x80056878 do STEP01, para pular direto a outro overlay).
 - `--estado 20@700` carrega e executa o overlay STEP02 (fundo de rocha com o dragão); `--estado 50@700` executa o STEP999 (céu/nuvens). Nenhum "[nao traduzido]".
-- Pendente: a tela do torneio (STEP01 substate 0x218) não avança só com CROSS; o caminho normal até STEP02/STEP999 ainda não foi achado.
+- Resolvido: STEP02 é o fluxo normal do jogo (Tournament pede START na tela "FIGHT n"); STEP999 é o Sound Menu (SELECT no título).
 - Às vezes aparece "CD timeout" ao forçar o estado (timing do CD com `--cd-turbo`); não reproduz em toda execução.
 
 ### Notas de exploração (Marco 16, continuação)
@@ -126,3 +126,9 @@ Publique apenas a ferramenta (recomp.py + runtime).
 - Roda no Windows (MSYS2 MINGW64 + SDL2): janela, teclado, controle XInput (jogador 1 e 2) e audio. Veja `GUIA-PC.md`.
 - BIOS A0: libc do PsyQ agora emulada (strlen, strcpy, strcat, memcpy, memset, memcmp, rand/srand...). Antes devolvia 0 e quebrava o `sprintf` do nome do arquivo de save.
 - Memory card: API de arquivos da BIOS (open/read/write/close/firstfile/nextfile/erase/format) sobre `memcard1.mcd` (128 KB), eventos HwCARD e SwCARD. Save no Build-up testado pelo usuario: funciona.
+
+### Sound Menu, FPS e validação final (Marco 16, fechamento)
+- BIOS B0:51 (`Krom2RawAdd`): o Sound Menu desenha o texto com a fonte Krom da BIOS, que não temos. Agora é emulada com uma fonte gerada (`krom_font.h`, DejaVu Sans Bold): o texto do menu aparece.
+- Overlay de FPS: tecla **F3** liga/desliga (ou `FPS=1` para iniciar ligado). Medido pelo usuario: 60 FPS em luta.
+- Novos logs: `GPU_LOADS=1` imprime LoadImage, cópias VRAM e fim de transferência.
+- Validado pelo usuario no Windows: Tournament completo, Battle (VS Com = modo história, VS Man com controle 2), Build-up com save, Treino, Sound Menu, teclado e XInput (P1/P2), áudio com reverb.
