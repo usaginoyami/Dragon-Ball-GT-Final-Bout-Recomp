@@ -12,7 +12,8 @@ FERR = os.path.join(AQUI, 'ferramentas')
 DADOS = os.path.join(AQUI, 'dados')
 JOGO = os.path.join(DADOS, 'jogo')
 WIN = os.name == 'nt'
-EXE = os.path.join(DADOS, 'recomp_test.exe')
+EXE = os.path.join(DADOS, 'recomp_test.exe' if WIN else 'recomp_test')
+ALVO = 'x86_64-windows-gnu' if WIN else 'x86_64-linux-gnu.2.17'
 sys.path.insert(0, AQUI)
 import iso
 
@@ -79,6 +80,20 @@ def zig_cmd():
         return [exe]
     die('compilador (ferramentas/zig) nao encontrado. Baixe o pacote completo.')
 
+def achar_sdl_linux():
+    cands = []
+    try:
+        out = subprocess.run(['ldconfig', '-p'], capture_output=True, text=True).stdout
+        cands += [l.split('=>')[1].strip() for l in out.splitlines() if 'libSDL2-2.0.so.0' in l and '=>' in l and ('x86-64' in l or 'libc6,x86-64' in l)]
+    except Exception:
+        pass
+    for d in ('/usr/lib/x86_64-linux-gnu', '/usr/lib64', '/usr/lib', '/lib/x86_64-linux-gnu', '/usr/local/lib'):
+        cands.append(os.path.join(d, 'libSDL2-2.0.so.0'))
+    for c in cands:
+        if os.path.exists(c):
+            return c
+    die('SDL2 nao encontrada no sistema. Instale:  Debian/Ubuntu: sudo apt install libsdl2-2.0-0   |  Fedora: sudo dnf install SDL2   |  Arch: sudo pacman -S sdl2')
+
 def compilar():
     gen = os.path.join(DADOS, 'gen'); obj = os.path.join(DADOS, 'obj')
     shutil.rmtree(gen, ignore_errors=True); shutil.rmtree(obj, ignore_errors=True)
@@ -97,7 +112,7 @@ def compilar():
     total = len(fontes); feito = [0]
     def comp(f):
         o = os.path.join(obj, os.path.basename(f) + '.o')
-        c = zig + ['cc', '-target', 'x86_64-windows-gnu', '-O1', '-w', '-I', FONTE, '-DUSE_SDL',
+        c = zig + ['cc', '-target', ALVO, '-O1', '-w', '-I', FONTE, '-DUSE_SDL',
                    '-I', os.path.join(sdl, 'include'), '-I', os.path.join(sdl, 'include', 'SDL2'), '-c', f, '-o', o]
         r = subprocess.run(c, env=env, capture_output=True, text=True)
         feito[0] += 1
@@ -109,13 +124,16 @@ def compilar():
     with ThreadPoolExecutor(max_workers=max(2, os.cpu_count() or 2)) as ex:
         objs = list(ex.map(comp, fontes))
     print('   ligando...')
-    c = zig + ['cc', '-target', 'x86_64-windows-gnu'] + objs + [os.path.join(sdl, 'lib', 'libSDL2.dll.a'),
-         os.path.join(sdl, 'lib', 'libSDL2main.a'), '-lm', '-lwinmm', '-o', EXE]
+    if WIN:
+        c = zig + ['cc', '-target', ALVO] + objs + [os.path.join(sdl, 'lib', 'libSDL2.dll.a'),
+             os.path.join(sdl, 'lib', 'libSDL2main.a'), '-lm', '-lwinmm', '-o', EXE]
+    else:
+        c = zig + ['cc', '-target', ALVO] + objs + [achar_sdl_linux(), '-lm', '-o', EXE]
     r = subprocess.run(c, env=env, capture_output=True, text=True)
     if r.returncode:
         print(r.stderr[-2000:]); die('falha ao ligar o executavel.')
     dll = os.path.join(sdl, 'bin', 'SDL2.dll')
-    if os.path.exists(dll):
+    if WIN and os.path.exists(dll):
         shutil.copy(dll, DADOS)
     shutil.rmtree(gen, ignore_errors=True); shutil.rmtree(obj, ignore_errors=True)
     try: os.remove(EXE[:-4] + '.pdb')

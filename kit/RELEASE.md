@@ -10,3 +10,7 @@
 - Teclas, opções e solução de problemas: `LEIA-ME.txt` dentro do zip.
 
 Aviso: o programa gerado na sua máquina (pasta `dados/`) é derivado do jogo; não o compartilhe.
+
+## Arquivos
+- `FinalBout-Recomp-win64.zip`: Windows 64 bits (`Jogar.bat`).
+- `FinalBout-Recomp-linux-x86_64.tar.gz`: Linux x86_64 (`./Jogar.sh disco.cue`; precisa de `libsdl2` do sistema; jogado só em teste sem tela).
