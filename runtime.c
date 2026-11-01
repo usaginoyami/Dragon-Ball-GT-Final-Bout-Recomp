@@ -85,8 +85,11 @@ static double audio_t = 0; static void audio_run(void) {
 } extern int gpu_logn; void gpu_vblank(void); int gpu_dump(const char*); int gpu_dump_vram(const char*); void gpu_info(void);
 uint32_t g_frames; static uint32_t g_shots[32], g_nshots, g_maxf = 0xffffffff;
 static uint32_t force_state=0xffffffff, force_at=0;
+static int g_pad2; void pad_has2(int v) { g_pad2 = v; }
 static uint32_t pad_buf[2]; static uint32_t pad_mask, pad_start_at = 0xffffffff, pad_period = 90;
+static uint32_t pad_mask2;
 void pad_set(uint32_t m) { pad_mask = m; }
+void pad_set2(uint32_t m) { pad_mask2 = m; }
 static int g_win;
 int video_init(void); void video_present(void);
 static struct { uint32_t m, f; } presses[64]; static int npress;
@@ -102,12 +105,15 @@ static void pad_update(void) {
     for (int p = 0; p < 2; p++) if (pad_buf[p]) {
         uint32_t a = pad_buf[p];
         wr8(a, 0x00); wr8(a + 1, 0x41);
-        wr8(a + 2, ~m & 0xff); wr8(a + 3, (~m >> 8) & 0xff);
-        if (p == 1) { wr8(a, 0xff); }             /* porta 2: sem controle */
+        uint32_t mm = p == 0 ? m : pad_mask2;
+        wr8(a + 2, ~mm & 0xff); wr8(a + 3, (~mm >> 8) & 0xff);
+        if (p == 1 && !g_pad2) { wr8(a, 0xff); }   /* porta 2: sem controle ate haver um controle 2 */
     }
 }
+static void mc_flush(void);
 static void run_vblank(void) {
     if (!g_vcb || in_cb) return;
+    { static int t; if ((++t & 63) == 0) mc_flush(); }
     uint32_t c = vblank_count(); if (c == last_disp) return; last_disp = c; g_frames++; gpu_vblank(); audio_run(); if (g_win) video_present(); pad_update();
     if (getenv("GPU_LOGAT") && g_frames == (uint32_t)atoi(getenv("GPU_LOGAT"))) gpu_logn = 3000;
     if (getenv("VERBOSEAT")) { int f = atoi(getenv("VERBOSEAT")); if ((int)g_frames == f) g_verbose = 1; if ((int)g_frames == f + 1) g_verbose = 0; }
@@ -162,7 +168,64 @@ static void mc_load(void) {
     for (int i = 16; i < 36; i++) { uint8_t* e = mc + i * 128; memset(e, 0xff, 4); e[8] = e[9] = 0xff; }
     memcpy(mc + 63 * 128, mc, 128);
 }
-static void mc_save(void) { FILE* f = fopen("memcard1.mcd", "wb"); if (f) { fwrite(mc, 1, sizeof mc, f); fclose(f); } }
+static int mc_dirty;
+static void mc_flush(void) { if (!mc_dirty) return; mc_dirty = 0; FILE* f = fopen("memcard1.mcd", "wb"); if (f) { fwrite(mc, 1, sizeof mc, f); fclose(f); } }
+static void mc_save(void) { mc_dirty = 1; }
+/* ---- sistema de arquivos do cartao (API de arquivos da BIOS: open/read/write/firstfile...) ---- */
+typedef struct { int used, nblk, chain[15], pos, wr; } McFd;
+static McFd mcfd[16];
+static int mc_scan_slot = 0; static char mc_scan_pat[32];
+static void mc_sum(int slot) { uint8_t* e = mc + slot * 128; uint8_t x = 0; for (int i = 0; i < 127; i++) x ^= e[i]; e[127] = x; }
+static int mc_match(const char* pat, const char* name) {
+    for (;; pat++, name++) { if (*pat == '*') return 1; if (*pat == 0) return *name == 0; if (*pat == '?') { if (!*name) return 0; continue; } if (*pat != *name) return 0; }
+}
+static void mc_name(uint32_t a, char* out, int n) { int i = 0; for (; i < n - 1; i++) { char c = (char)rd8(a + i); if (!c) break; out[i] = c; } out[i] = 0; }
+static const char* mc_path(const char* p) { const char* c = strchr(p, ':'); return c ? c + 1 : p; }
+static int mc_find_first(const char* pat, int from) {
+    for (int i = from; i < 16; i++) { uint8_t* e = mc + i * 128; if (e[0] == 0x51) { char nm[21]; memcpy(nm, e + 10, 20); nm[20] = 0; if (mc_match(pat, nm)) return i; } }
+    return 0;
+}
+static int mc_chain(int first, int* chain) { int n = 0, s = first; while (s > 0 && s < 16 && n < 15) { chain[n++] = s; uint8_t* e = mc + s * 128; int nx = e[8] | (e[9] << 8); if (nx == 0xffff) break; s = nx + 1; } return n; }
+static void mc_fill_dirent(uint32_t d, int slot) {
+    uint8_t* e = mc + slot * 128; for (int i = 0; i < 20; i++) wr8(d + i, e[10 + i]);
+    wr32(d + 20, 0); wr32(d + 24, e[4] | (e[5] << 8) | (e[6] << 16) | ((uint32_t)e[7] << 24)); wr32(d + 28, 0); wr16(d + 32, slot - 1);
+}
+static int mc_open(uint32_t pathp, uint32_t mode) {
+    mc_load(); char p[48]; mc_name(pathp, p, sizeof p);
+    if (strncmp(p, "bu00", 4)) return -1;
+    const char* nm = mc_path(p); int slot = mc_find_first(nm, 1);
+    int fd = -1; for (int i = 0; i < 16; i++) if (!mcfd[i].used) { fd = i; break; } if (fd < 0) return -1;
+    McFd* f = &mcfd[fd]; memset(f, 0, sizeof *f);
+    if (!slot) {
+        if (!(mode & 0x200)) return -1;
+        int nb = (mode >> 16) & 15; if (nb < 1) nb = 1; int got = 0, sl[15];
+        for (int i = 1; i < 16 && got < nb; i++) if (mc[i * 128] == 0xa0 || mc[i * 128] == 0xa1 || mc[i * 128] == 0xa2 || mc[i * 128] == 0xa3) sl[got++] = i;
+        if (got < nb) return -1;
+        for (int k = 0; k < nb; k++) {
+            uint8_t* e = mc + sl[k] * 128; memset(e, 0, 128);
+            e[0] = nb == 1 || k == 0 ? 0x51 : (k == nb - 1 ? 0x53 : 0x52); if (nb > 1 && k == 0) e[0] = 0x51;
+            int sz = k == 0 ? nb * 8192 : 0; e[4] = sz & 255; e[5] = (sz >> 8) & 255; e[6] = (sz >> 16) & 255; e[7] = (sz >> 24) & 255;
+            int nx = k < nb - 1 ? sl[k + 1] - 1 : 0xffff; e[8] = nx & 255; e[9] = nx >> 8;
+            if (k == 0) { strncpy((char*)e + 10, nm, 20); }
+            mc_sum(sl[k]);
+        }
+        for (int k = 0; k < nb; k++) { memset(mc + sl[k] * 8192, 0, 8192); }
+        slot = sl[0]; mc_dirty = 1;
+    }
+    f->nblk = mc_chain(slot, f->chain); f->used = 1; f->wr = (mode & 2) != 0;
+    return fd;
+}
+static int mc_rw(int fd, uint32_t buf, int n, int write) {
+    if (fd < 0 || fd > 15 || !mcfd[fd].used) return -1; McFd* f = &mcfd[fd]; int done = 0;
+    int total = f->nblk * 8192;
+    while (done < n && f->pos < total) {
+        int blk = f->pos / 8192, off = f->pos % 8192; uint8_t* d = mc + f->chain[blk] * 8192 + off;
+        if (write) *d = (uint8_t)rd8(buf + done); else wr8(buf + done, *d);
+        f->pos++; done++;
+    }
+    if (write && done) mc_dirty = 1;
+    return done;
+}
 static void kev_deliver(uint32_t cls, uint32_t spec) { for (int i = 0; i < 64; i++) if (kev[i].used && kev[i].cls == cls && kev[i].spec == spec) kev[i].delivered = 1; }
 static int card_class(uint32_t c) { return c == 0xf4000001u || c == 0xf0000011u; }
 static void bios_call(uint32_t tbl, uint32_t fn);
@@ -195,6 +258,19 @@ static void bios_call(uint32_t tbl, uint32_t fn) {
         case 0x20: { name = "UnDeliverEvent"; for (int i = 0; i < 64; i++) if (kev[i].used && kev[i].cls == a0 && kev[i].spec == a1) kev[i].delivered = 0; break; }
         case 0x4e: { name = "_card_write"; mc_load(); uint32_t s = a1 & 0x3ff; if (!(a0 & 0x10) && s < 1024) { for (int k = 0; k < 128; k++) mc[s * 128 + k] = rd8(R[6] + k); mc_save(); kev_deliver(0xf4000001u, 0x0004); R[2] = 1; } else kev_deliver(0xf4000001u, 0x0100); break; }
         case 0x4f: { name = "_card_read"; mc_load(); uint32_t s = a1 & 0x3ff; if (!(a0 & 0x10) && s < 1024) { for (int k = 0; k < 128; k++) wr8(R[6] + k, mc[s * 128 + k]); kev_deliver(0xf4000001u, 0x0004); R[2] = 1; } else kev_deliver(0xf4000001u, 0x0100); break; }
+        case 0x32: { name = "open"; R[2] = (uint32_t)mc_open(a0, a1); kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x33: { name = "lseek"; int fd = (int)a0; if (fd >= 0 && fd < 16 && mcfd[fd].used) { int w = (int)R[6], np = (int)a1; if (w == 1) np += mcfd[fd].pos; else if (w == 2) np += mcfd[fd].nblk * 8192; mcfd[fd].pos = np < 0 ? 0 : np; R[2] = mcfd[fd].pos; } else R[2] = (uint32_t)-1; break; }
+        case 0x34: { name = "read"; R[2] = (uint32_t)mc_rw((int)a0, a1, (int)R[6], 0); kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x35: { name = "write"; R[2] = (uint32_t)mc_rw((int)a0, a1, (int)R[6], 1); kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x36: { name = "close"; if (a0 < 16) mcfd[a0].used = 0; R[2] = a0; kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x41: { name = "format"; mc_load(); for (int i = 1; i < 16; i++) { uint8_t* e = mc + i * 128; memset(e, 0, 128); e[0] = 0xa0; e[8] = e[9] = 0xff; mc_sum(i); } memset(mc + 8192, 0, 15 * 8192); mc_dirty = 1; R[2] = 1; kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x42: { name = "firstfile"; mc_load(); char p[48]; mc_name(a0, p, sizeof p); if (strncmp(p, "bu00", 4)) { R[2] = 0; break; }
+            snprintf(mc_scan_pat, sizeof mc_scan_pat, "%s", mc_path(p)); int sl = mc_find_first(mc_scan_pat, 1); mc_scan_slot = sl;
+            if (sl) { mc_fill_dirent(a1, sl); R[2] = a1; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x43: { name = "nextfile"; int sl = mc_scan_slot ? mc_find_first(mc_scan_pat, mc_scan_slot + 1) : 0; mc_scan_slot = sl;
+            if (sl) { mc_fill_dirent(a0, sl); R[2] = a0; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x45: { name = "erase"; mc_load(); char p[48]; mc_name(a0, p, sizeof p); int sl = mc_find_first(mc_path(p), 1);
+            if (sl) { int ch[15]; int n = mc_chain(sl, ch); for (int k = 0; k < n; k++) { uint8_t* e = mc + ch[k] * 128; e[0] = 0xa0 | 0; e[8] = e[9] = 0xff; mc_sum(ch[k]); } mc_dirty = 1; R[2] = 1; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); break; }
         case 0x0c: name = "EnableEvent"; R[2] = 1; break;
         case 0x17: name = "ReturnFromException"; { extern void isr_exit(void); isr_exit(); } break;
         case 0x19: name = "SetCustomExitFromException"; irq_handler_struct = a0; break;
@@ -277,6 +353,7 @@ int main(int argc, char** argv) {
     overlay_init(); init_kernel_tables();
     R[28] = gp; R[29] = 0x801fff00; R[31] = 0;
     if (g_win) { if (!video_init()) { fprintf(stderr, "janela indisponivel (compile com SDL2: veja build.sh)\n"); return 1; } putenv("ALARM=0"); }
+atexit(mc_flush);
 #ifndef _WIN32
     signal(SIGALRM, on_alarm); alarm(getenv("ALARM") ? atoi(getenv("ALARM")) : 30);
 #else

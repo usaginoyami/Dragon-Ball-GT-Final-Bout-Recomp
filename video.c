@@ -5,12 +5,19 @@
 #ifdef USE_SDL
 #include <SDL.h>
 void gpu_render(uint32_t*, int*, int*);
-void pad_set(uint32_t);
+void pad_set(uint32_t); void pad_set2(uint32_t); void pad_has2(int);
 static SDL_Window* win; static SDL_Renderer* ren; static SDL_Texture* tex; static int tw, th;
 static uint32_t fb[640 * 480];
-static uint32_t keys, padbits; static SDL_AudioDeviceID adev; static SDL_GameController* gc;
-static void gc_open(void) { if (gc) return; for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) { gc = SDL_GameControllerOpen(i); if (gc) { fprintf(stderr, "[pad] controle: %s\n", SDL_GameControllerName(gc)); break; } } }
-static uint32_t gc_bits(void) {
+static uint32_t keys, keys2; static SDL_AudioDeviceID adev; static SDL_GameController* gcs[2];
+static void gc_open(void) {
+    for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) {
+        SDL_GameController* c = SDL_GameControllerOpen(i); if (!c) continue;
+        int dup = 0; for (int k = 0; k < 2; k++) if (gcs[k] == c) dup = 1;
+        if (dup) continue;
+        for (int k = 0; k < 2; k++) if (!gcs[k]) { gcs[k] = c; fprintf(stderr, "[pad] controle %d: %s\n", k + 1, SDL_GameControllerName(c)); break; }
+    }
+}
+static uint32_t gc_bits(SDL_GameController* gc) {
     if (!gc) return 0; uint32_t m = 0;
 #define B(btn, bit) if (SDL_GameControllerGetButton(gc, btn)) m |= 1u << (bit)
     B(SDL_CONTROLLER_BUTTON_BACK, 0); B(SDL_CONTROLLER_BUTTON_LEFTSTICK, 1); B(SDL_CONTROLLER_BUTTON_RIGHTSTICK, 2); B(SDL_CONTROLLER_BUTTON_START, 3);
@@ -34,6 +41,15 @@ int video_init(void) {
     gc_open();
     return win && ren;
 }
+static uint32_t keybit2(SDL_Keycode k) {   /* jogador 2: I J K L, U O Y H (botoes), Enter do teclado numerico = Start */
+    switch (k) {
+    case SDLK_KP_ENTER: return 1u << 3;  case SDLK_RCTRL: return 1u << 0;
+    case SDLK_i: return 1u << 4;  case SDLK_l: return 1u << 5;  case SDLK_k: return 1u << 6;  case SDLK_j: return 1u << 7;
+    case SDLK_p: return 1u << 12; case SDLK_o: return 1u << 13; case SDLK_u: return 1u << 14; case SDLK_y: return 1u << 15;
+    case SDLK_t: return 1u << 10; case SDLK_g: return 1u << 11; case SDLK_h: return 1u << 8; case SDLK_n: return 1u << 9;
+    }
+    return 0;
+}
 static uint32_t keybit(SDL_Keycode k) {
     switch (k) {
     case SDLK_RETURN: return 1u << 3;  case SDLK_BACKSPACE: case SDLK_RSHIFT: return 1u << 0;
@@ -52,13 +68,13 @@ void video_present(void) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT || (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)) exit(0);
-        if (e.type == SDL_KEYDOWN && !e.key.repeat) keys |= keybit(e.key.keysym.sym);
-        if (e.type == SDL_KEYUP) keys &= ~keybit(e.key.keysym.sym);
+        if (e.type == SDL_KEYDOWN && !e.key.repeat) { keys |= keybit(e.key.keysym.sym); keys2 |= keybit2(e.key.keysym.sym); }
+        if (e.type == SDL_KEYUP) { keys &= ~keybit(e.key.keysym.sym); keys2 &= ~keybit2(e.key.keysym.sym); }
         if (e.type == SDL_CONTROLLERDEVICEADDED) gc_open();
-        if (e.type == SDL_CONTROLLERDEVICEREMOVED && gc && e.cdevice.which == SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gc))) { SDL_GameControllerClose(gc); gc = NULL; gc_open(); }
+        if (e.type == SDL_CONTROLLERDEVICEREMOVED) { for (int k = 0; k < 2; k++) if (gcs[k] && e.cdevice.which == SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gcs[k]))) { SDL_GameControllerClose(gcs[k]); gcs[k] = NULL; } gc_open(); }
     }
-    padbits = gc_bits();
-    pad_set(keys | padbits);
+    pad_set(keys | gc_bits(gcs[0]));
+    pad_has2(1); pad_set2(keys2 | gc_bits(gcs[1]));
     int w, h; gpu_render(fb, &w, &h);
     if (!tex || w != tw || h != th) { if (tex) SDL_DestroyTexture(tex); tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h); tw = w; th = h; }
     SDL_UpdateTexture(tex, NULL, fb, w * 4);

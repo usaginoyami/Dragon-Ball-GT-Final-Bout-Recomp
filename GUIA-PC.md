@@ -52,7 +52,12 @@ Use o nome real do seu arquivo `.bin`, entre aspas se tiver espaços.
 | Sair | Esc |
 
 ## Controle (XInput / Xbox)
-Controles Xbox/XInput (e outros que o SDL2 reconheça) funcionam sozinhos, ligados antes ou durante o jogo: A=Cross, B=Circulo, X=Quadrado, Y=Triangulo, LB/RB=L1/R1, LT/RT=L2/R2, Back=Select, Start=Start, direcional ou analogico esquerdo = direcional. Hoje só o controle 1 (um controle) é usado. O teclado continua funcionando junto.
+Controles Xbox/XInput (e outros que o SDL2 reconheça) funcionam sozinhos, ligados antes ou durante o jogo: A=Cross, B=Circulo, X=Quadrado, Y=Triangulo, LB/RB=L1/R1, LT/RT=L2/R2, Back=Select, Start=Start, direcional ou analogico esquerdo = direcional. O segundo controle conectado vira o jogador 2. O teclado continua funcionando junto.
+
+Jogador 2 no teclado: I/J/K/L = direcional, P = Triangulo, O = Circulo, U = Cross, Y = Quadrado, T/G = L1/R1, H/N = L2/R2, Enter do teclado numerico = Start.
+
+## Memory card
+Os saves ficam em `memcard1.mcd` (na pasta onde você roda o jogo). Apague esse arquivo para começar com um cartão vazio.
 
 ## O que eu preciso que você teste
 1. A janela abre e mostra o vídeo da Bandai e as logos com o som certo?
