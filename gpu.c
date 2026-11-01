@@ -167,11 +167,13 @@ static void exec_cmd(void) {
     if (c >= 0x80 && c < 0xa0) {
         int sx0 = cmd[1] & 0x3ff, sy0 = (cmd[1] >> 16) & 0x1ff, dx0 = cmd[2] & 0x3ff, dy0 = (cmd[2] >> 16) & 0x1ff;
         int w = cmd[3] & 0x3ff, h = (cmd[3] >> 16) & 0x1ff; if (!w) w = 0x400; if (!h) h = 0x200;
+        if (getenv("GPU_LOADS")) { extern uint32_t g_frames; fprintf(stderr, "[vramcopy] quadro %u (%d,%d)->(%d,%d) %dx%d\n", g_frames, sx0, sy0, dx0, dy0, w, h); }
         for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) VR(dx0 + i, dy0 + j) = VR(sx0 + i, sy0 + j);
         return;
     }
     if (c >= 0xa0 && c < 0xc0) {
         xx = cmd[1] & 0x3ff; xy = (cmd[1] >> 16) & 0x1ff; xw = cmd[2] & 0x3ff; xh = (cmd[2] >> 16) & 0x1ff; if (!xw) xw = 0x400; if (!xh) xh = 0x200;
+        if (getenv("GPU_LOADS")) { extern uint32_t g_frames; fprintf(stderr, "[loadimage] quadro %u -> (%d,%d) %dx%d\n", g_frames, xx, xy, xw, xh); }
         xpos = 0; xtotal = xw * xh; xfer_mode = 1; return;
     }
     if (c >= 0xc0 && c < 0xe0) {
@@ -193,7 +195,7 @@ void gpu_gp0(uint32_t w) {
         for (int k = 0; k < 2 && xpos < xtotal; k++, xpos++) {
             VR(xx + xpos % xw, xy + xpos / xw) = (w >> (16 * k)) & 0xffff;
         }
-        if (xpos >= xtotal) xfer_mode = 0;
+        if (xpos >= xtotal) { xfer_mode = 0; if (getenv("GPU_LOADS")) fprintf(stderr, "[xfer] fim (%d,%d) %dx%d\n", xx, xy, xw, xh); }
         return;
     }
     if (polyline) {                                   /* polilinha em andamento */
