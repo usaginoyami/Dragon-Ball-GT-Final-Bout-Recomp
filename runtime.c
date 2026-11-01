@@ -258,19 +258,19 @@ static void bios_call(uint32_t tbl, uint32_t fn) {
         case 0x20: { name = "UnDeliverEvent"; for (int i = 0; i < 64; i++) if (kev[i].used && kev[i].cls == a0 && kev[i].spec == a1) kev[i].delivered = 0; break; }
         case 0x4e: { name = "_card_write"; mc_load(); uint32_t s = a1 & 0x3ff; if (!(a0 & 0x10) && s < 1024) { for (int k = 0; k < 128; k++) mc[s * 128 + k] = rd8(R[6] + k); mc_save(); kev_deliver(0xf4000001u, 0x0004); R[2] = 1; } else kev_deliver(0xf4000001u, 0x0100); break; }
         case 0x4f: { name = "_card_read"; mc_load(); uint32_t s = a1 & 0x3ff; if (!(a0 & 0x10) && s < 1024) { for (int k = 0; k < 128; k++) wr8(R[6] + k, mc[s * 128 + k]); kev_deliver(0xf4000001u, 0x0004); R[2] = 1; } else kev_deliver(0xf4000001u, 0x0100); break; }
-        case 0x32: { name = "open"; R[2] = (uint32_t)mc_open(a0, a1); kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x32: { name = "open"; R[2] = (uint32_t)mc_open(a0, a1); kev_deliver(0xf0000011u, 0x0004); kev_deliver(0xf4000001u, 0x0004); break; }
         case 0x33: { name = "lseek"; int fd = (int)a0; if (fd >= 0 && fd < 16 && mcfd[fd].used) { int w = (int)R[6], np = (int)a1; if (w == 1) np += mcfd[fd].pos; else if (w == 2) np += mcfd[fd].nblk * 8192; mcfd[fd].pos = np < 0 ? 0 : np; R[2] = mcfd[fd].pos; } else R[2] = (uint32_t)-1; break; }
-        case 0x34: { name = "read"; R[2] = (uint32_t)mc_rw((int)a0, a1, (int)R[6], 0); kev_deliver(0xf0000011u, 0x0004); break; }
-        case 0x35: { name = "write"; R[2] = (uint32_t)mc_rw((int)a0, a1, (int)R[6], 1); kev_deliver(0xf0000011u, 0x0004); break; }
-        case 0x36: { name = "close"; if (a0 < 16) mcfd[a0].used = 0; R[2] = a0; kev_deliver(0xf0000011u, 0x0004); break; }
-        case 0x41: { name = "format"; mc_load(); for (int i = 1; i < 16; i++) { uint8_t* e = mc + i * 128; memset(e, 0, 128); e[0] = 0xa0; e[8] = e[9] = 0xff; mc_sum(i); } memset(mc + 8192, 0, 15 * 8192); mc_dirty = 1; R[2] = 1; kev_deliver(0xf0000011u, 0x0004); break; }
+        case 0x34: { name = "read"; R[2] = (uint32_t)mc_rw((int)a0, a1, (int)R[6], 0); kev_deliver(0xf0000011u, 0x0004); kev_deliver(0xf4000001u, 0x0004); break; }
+        case 0x35: { name = "write"; R[2] = (uint32_t)mc_rw((int)a0, a1, (int)R[6], 1); kev_deliver(0xf0000011u, 0x0004); kev_deliver(0xf4000001u, 0x0004); break; }
+        case 0x36: { name = "close"; if (a0 < 16) mcfd[a0].used = 0; R[2] = a0; kev_deliver(0xf0000011u, 0x0004); kev_deliver(0xf4000001u, 0x0004); break; }
+        case 0x41: { name = "format"; mc_load(); for (int i = 1; i < 16; i++) { uint8_t* e = mc + i * 128; memset(e, 0, 128); e[0] = 0xa0; e[8] = e[9] = 0xff; mc_sum(i); } memset(mc + 8192, 0, 15 * 8192); mc_dirty = 1; R[2] = 1; kev_deliver(0xf0000011u, 0x0004); kev_deliver(0xf4000001u, 0x0004); break; }
         case 0x42: { name = "firstfile"; mc_load(); char p[48]; mc_name(a0, p, sizeof p); if (strncmp(p, "bu00", 4)) { R[2] = 0; break; }
             snprintf(mc_scan_pat, sizeof mc_scan_pat, "%s", mc_path(p)); int sl = mc_find_first(mc_scan_pat, 1); mc_scan_slot = sl;
-            if (sl) { mc_fill_dirent(a1, sl); R[2] = a1; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); break; }
+            if (sl) { mc_fill_dirent(a1, sl); R[2] = a1; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); kev_deliver(0xf4000001u, 0x0004); break; }
         case 0x43: { name = "nextfile"; int sl = mc_scan_slot ? mc_find_first(mc_scan_pat, mc_scan_slot + 1) : 0; mc_scan_slot = sl;
-            if (sl) { mc_fill_dirent(a0, sl); R[2] = a0; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); break; }
+            if (sl) { mc_fill_dirent(a0, sl); R[2] = a0; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); kev_deliver(0xf4000001u, 0x0004); break; }
         case 0x45: { name = "erase"; mc_load(); char p[48]; mc_name(a0, p, sizeof p); int sl = mc_find_first(mc_path(p), 1);
-            if (sl) { int ch[15]; int n = mc_chain(sl, ch); for (int k = 0; k < n; k++) { uint8_t* e = mc + ch[k] * 128; e[0] = 0xa0 | 0; e[8] = e[9] = 0xff; mc_sum(ch[k]); } mc_dirty = 1; R[2] = 1; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); break; }
+            if (sl) { int ch[15]; int n = mc_chain(sl, ch); for (int k = 0; k < n; k++) { uint8_t* e = mc + ch[k] * 128; e[0] = 0xa0 | 0; e[8] = e[9] = 0xff; mc_sum(ch[k]); } mc_dirty = 1; R[2] = 1; } else R[2] = 0; kev_deliver(0xf0000011u, 0x0004); kev_deliver(0xf4000001u, 0x0004); break; }
         case 0x0c: name = "EnableEvent"; R[2] = 1; break;
         case 0x17: name = "ReturnFromException"; { extern void isr_exit(void); isr_exit(); } break;
         case 0x19: name = "SetCustomExitFromException"; irq_handler_struct = a0; break;
