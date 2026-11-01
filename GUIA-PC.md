@@ -70,3 +70,7 @@ Se algo der erro, copie as últimas linhas do terminal e me mande.
 ## Problemas conhecidos no Windows
 - O build usa GCC 14+ do MSYS2; o `build.sh` já tem as flags necessárias.
 - Se a janela abrir e fechar na hora com `[nao traduzido]`, o `.bin` não foi encontrado: confira o nome do arquivo.
+
+## Overlay de FPS
+
+F3 liga/desliga o contador de FPS (canto superior esquerdo). Para iniciar ligado: `FPS=1 ./recomp_test ...`.

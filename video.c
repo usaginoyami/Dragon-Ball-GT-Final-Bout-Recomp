@@ -1,3 +1,6 @@
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 /* janela SDL2 + teclado (compilar com -DUSE_SDL) */
 #include <stdint.h>
 #include <stdio.h>
@@ -64,10 +67,26 @@ static uint32_t keybit(SDL_Keycode k) {
 }
 int audio_queued(void) { return adev ? (int)SDL_GetQueuedAudioSize(adev) / 4 : -1; }
 void audio_push(const int16_t* s, int n) { if (adev) SDL_QueueAudio(adev, s, n * 4); }
+static int show_fps; static float fps_val;
+static void fps_draw(uint32_t* px, int w, int h, float v) {
+    static const uint16_t g[10] = { 0x7b6f, 0x2c97, 0x73e7, 0x73cf, 0x5bc9, 0x79cf, 0x79ef, 0x7249, 0x7bef, 0x7bcf };  /* 3x5, linha a linha, bit14 = canto sup. esq. */
+    char t[16]; snprintf(t, sizeof t, "%d FPS", (int)(v + 0.5f));
+    const uint16_t F = 0x79a4, P = 0x7be4, S = 0x79cf;
+    int sc = 2, x0 = 4, y0 = 4, n = (int)strlen(t);
+    for (int j = 0; j < 7 * sc + 2; j++) for (int i = 0; i < (n * 4 + 1) * sc + 2; i++) if (x0 - 1 + i < w && y0 - 1 + j < h) px[(y0 - 1 + j) * w + x0 - 1 + i] = 0xff000000;
+    for (int c = 0; c < n; c++) {
+        uint16_t gl = t[c] >= '0' && t[c] <= '9' ? g[t[c] - '0'] : t[c] == 'F' ? F : t[c] == 'P' ? P : t[c] == 'S' ? S : 0;
+        for (int r = 0; r < 5; r++) for (int q = 0; q < 3; q++) if (gl & (1 << (14 - r * 3 - q)))
+            for (int a = 0; a < sc; a++) for (int b = 0; b < sc; b++) { int X = x0 + (c * 4 + q) * sc + b, Y = y0 + r * sc + a; if (X < w && Y < h) px[Y * w + X] = 0xff00ff00; }
+    }
+}
 void video_present(void) {
     SDL_Event e;
+    static uint32_t t0, nf; if (!t0) { t0 = SDL_GetTicks(); show_fps = getenv("FPS") != NULL; } nf++;
+    { uint32_t now = SDL_GetTicks(); if (now - t0 >= 500) { fps_val = nf * 1000.0f / (now - t0); nf = 0; t0 = now; } }
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT || (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)) exit(0);
+        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F3 && !e.key.repeat) show_fps = !show_fps;
         if (e.type == SDL_KEYDOWN && !e.key.repeat) { keys |= keybit(e.key.keysym.sym); keys2 |= keybit2(e.key.keysym.sym); }
         if (e.type == SDL_KEYUP) { keys &= ~keybit(e.key.keysym.sym); keys2 &= ~keybit2(e.key.keysym.sym); }
         if (e.type == SDL_CONTROLLERDEVICEADDED) gc_open();
@@ -77,6 +96,7 @@ void video_present(void) {
     pad_has2(1); pad_set2(keys2 | gc_bits(gcs[1]));
     int w, h; gpu_render(fb, &w, &h);
     if (!tex || w != tw || h != th) { if (tex) SDL_DestroyTexture(tex); tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h); tw = w; th = h; }
+    if (show_fps) fps_draw(fb, w, h, fps_val);
     SDL_UpdateTexture(tex, NULL, fb, w * 4);
     SDL_RenderClear(ren);
     int ow, oh; SDL_GetRendererOutputSize(ren, &ow, &oh);
