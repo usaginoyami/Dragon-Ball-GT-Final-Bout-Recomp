@@ -132,3 +132,7 @@ Publique apenas a ferramenta (recomp.py + runtime).
 - Overlay de FPS: tecla **F3** liga/desliga (ou `FPS=1` para iniciar ligado). Medido pelo usuario: 60 FPS em luta.
 - Novos logs: `GPU_LOADS=1` imprime LoadImage, cópias VRAM e fim de transferência.
 - Validado pelo usuario no Windows: Tournament completo, Battle (VS Com = modo história, VS Man com controle 2), Build-up com save, Treino, Sound Menu, teclado e XInput (P1/P2), áudio com reverb.
+
+### Pacote de 1 clique (`kit/`)
+- `kit/jogar.py` + `kit/Jogar.bat`: o usuario escolhe o proprio `.cue/.bin`; o lancador extrai `SLUS_004.93` e `STEP*.BIN` (`kit/iso.py`, leitor ISO9660 proprio), roda `build.py`, compila com Zig (`zig cc -target x86_64-windows-gnu`) e abre o jogo. Compila so na primeira vez (chave por hash do disco + fontes).
+- `kit/montar_kit.py` monta o zip de distribuicao (Python embutido + Zig reduzido + SDL2). O pacote **nao contem nada do jogo**; a pasta `dados/` gerada na maquina do usuario contem codigo do jogo e nao deve ser compartilhada.
