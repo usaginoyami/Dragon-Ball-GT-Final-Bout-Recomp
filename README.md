@@ -1,138 +1,52 @@
-# Final Bout recomp — primeira versao (marco 15)
+# Dragon Ball GT: Final Bout — recompilação estática (PS1)
 
-<img width="1024" height="1024" alt="dbgtbout-1651430927647" src="https://github.com/user-attachments/assets/93ea423b-0928-4e91-84dc-80e516663c47" />
+<img width="1024" height="1024" alt="dbgtbout" src="https://github.com/user-attachments/assets/93ea423b-0928-4e91-84dc-80e516663c47" />
 
+Recompilação estática de **Dragon Ball GT: Final Bout** (PS1, NTSC-U, `SLUS-004.93`): o código MIPS do jogo é traduzido para C e compilado como um programa nativo de Windows, com GPU, GTE, SPU, MDEC/XA, CD e memory card emulados por um runtime próprio.
 
-Gera C a partir do SLUS_004.93 (seu disco) e roda o boot do jogo.
+> **Aviso legal.** Este repositório contém **só a ferramenta**. Nenhum dado do jogo, disco ou código gerado do jogo está aqui. Você precisa do **seu próprio disco** (`.cue` + `.bin`). O programa gerado a partir do seu disco é derivado do jogo (protegido por direitos autorais): use só no seu PC e **não publique**.
 
-## Usar
-1. Extraia do SEU disco: SLUS_004.93 e os arquivos STEP00.BIN, STEP01.BIN, ... (pasta MENU).
-2. ./build.sh SLUS_004.93 PASTA_DOS_STEP        (gera o C em gen/ e compila)
-3. ./recomp_test SLUS_004.93 --bin "Dragon Ball GT - Final Bout.bin" [-cd] [-v]
-Para adicionar overlays: uma linha em overlays.txt (NOME BASE_HEX RAIZES) e rode o build de novo.
+## Estado atual (Marco 16)
+Funciona de ponta a ponta no Windows, validado jogando:
+- Vídeo de abertura (BANDAI + filme), título, menus, Battle (VS Com = modo história), VS Man, Tournament completo, Build-up (com save), Treino, Sound Menu.
+- Áudio com reverb, 60 FPS, tela cheia, teclado e controle (XInput) para os jogadores 1 e 2.
+- Memory card em arquivo (`memcard1.mcd`).
 
-## Estado (marco 4)
-- Controlador de CD emulado nos registradores (0x1F801800-03), com INT1/2/3, comandos Init, Setmode, Setloc, SeekL, ReadN/ReadS, GetID etc., lendo setores do seu .bin.
-- Interrupcoes: o runtime chama o trapIntr da propria biblioteca do jogo (via SetCustomExitFromException), que despacha os callbacks de CD e DMA.
-- DMA: canais 3 (CD), 6 (ClearOTagR) e os demais concluem na hora.
-- O jogo carrega STEP00.BIN em 0x8003DFA0 (CD real), o runtime reconhece o overlay pelo hash e executa o codigo traduzido dele.
-- Hoje o jogo chega a tocar o video de abertura (LOGO.STR, setor 24): precisa de MDEC (decodificador de video) ou de um atalho para pular.
-- Ainda falta: MDEC, GPU (desenho), GTE (3D), SPU (som real), traduzir STEP01..STEP999, entrada de controle.
+Não validado: áudio dos vídeos (XA) de ouvido, outras regiões/versões do jogo, Linux/macOS como alvo de jogo (a janela usa SDL2 e deve funcionar, mas não foi testado).
 
-## Mapa da biblioteca Sony (PsyQ) neste exe
-CD:  CdInit 8001c908 | CdFlush 8001cabc | CdSetDebug 8001cadc | CdSync 8001cb5c (CD_sync 8001d704) | CdReady 8001cb7c (CD_ready 8001d984)
-     CdSyncCallback 8001cb9c | CdReadyCallback 8001cbb4 | CdControl 8001cbcc | CdControlF 8001cd04 | CdControlB 8001ce30
-     CD_cw 8001dc58 | CD_init 8001e318 | CD_datasync 8001e504 | CdSetMode-like 8001ee40/8001ee58 | leitura/ISO9660 ('CD001') 8001f028
-Video: VSync 8001bbec | VSyncCallback 8001be60 (callback do jogo: 8001104c) | ResetGraph 800268a4 | DrawSync 80026d6c | SetDispMask 80026cc8
-     ClearImage 80026ef8 | LoadImage 80027028 | StoreImage 8002708c | MoveImage 800270f0
-     ClearOTag 800271bc | ClearOTagR 80027274 | DrawOTag 8002736c | PutDrawEnv 800273d8 | DrawOTagEnv 800274dc | PutDispEnv 80027638
-Jogo: main 80010c54 | laco de estados 80010ea8 | producer da fila 80017790 | espera da fila 80016980 | pump da fila 80017890
+## Como usar (1 clique, Windows 64 bits)
+1. Baixe o pacote **FinalBout-Recomp-win64.zip** (em *Releases*) e extraia numa pasta simples (ex.: `C:\FinalBout`).
+2. Dê dois cliques em **`Jogar.bat`** e escolha o seu `.cue` (ou `.bin`).
+3. Na **primeira vez** ele extrai os arquivos do disco, recompila o jogo e compila (alguns minutos). Nas próximas, abre direto.
 
-## Aviso
-O C gerado e derivado do jogo (protegido por direitos autorais): use so no seu PC e nao publique.
-Publique apenas a ferramenta (recomp.py + runtime).
+O pacote traz Python, o compilador Zig e a SDL2 embutidos; nada precisa ser instalado. Ele não contém nada do jogo.
 
+### Teclas
+| | Jogador 1 | Jogador 2 |
+|---|---|---|
+| Direcional | Setas | I / J / K / L |
+| Triângulo / Círculo | S / X | P / O |
+| Xis / Quadrado | Z / A | U / Y |
+| L1 / R1 | Q / W | T / G |
+| L2 / R2 | E / R | H / N |
+| Start / Select | Enter / Backspace | Enter do teclado numérico / Ctrl direito |
 
-## Marco 5 (atual)
-- Ganchos em `hle_hook`: pula o video LOGO.STR (STEP00, 0x8003e14c) e o substado de video STR do STEP01 (0x8003f24c avanca o substado).
-- overlays.txt agora tem STEP00 e STEP01 (ambos base 8003dfa0, distinguidos pelo hash).
-- Resultado: o jogo chega no substado 0x2xx do STEP01 (provavel tela de titulo/menu) e fica rodando o laco por frame.
-- Falta: GPU (desenho + janela SDL), GTE, MDEC, SPU, controle, STEP02/03/40/999.
+Controles XInput funcionam sozinhos (1º controle = P1, 2º = P2). **F11** ou **Alt+Enter**: tela cheia. **F3**: mostra FPS. **Esc**: sair.
 
-## Marco 6
-- `gpu.c`: GPU em software (VRAM 1024x512, poligonos flat/gouraud/texturizados 4/8/15bpp, sprites, linhas, fill, copias de VRAM, DMA canal 2 em lista encadeada/bloco).
-- Controle: InitPad guarda os buffers; preenchidos a cada vblank (pad digital, nada apertado). `--start-at N` aperta Start automaticamente a partir do quadro N (teste).
-- Opcoes novas: `--shot N` salva `shot.ppm` (tela) e `vram.ppm` no quadro N; `--frames N` sai no quadro N; env `ALARM=segundos` (padrao 30), `GPU_LOG=n` imprime n comandos GP0.
-- Resultado: tela de copyright e menu principal (logo Dragon Ball GT Final Bout, Goku SSJ) renderizam corretamente.
-- Falta: janela SDL + teclado, GTE (combate 3D), SPU audio, MDEC, STEP02/03/40/999.
+Opções úteis no `Jogar.bat`: `--pular-video` (pula a abertura), `--reconstruir` (recompila do zero). Variáveis: `FPS=1` (FPS ligado desde o início), `BIOSLOG=1` (log das chamadas de BIOS).
 
-## Marco 7 — janela e teclado (SDL2)
-- Build com SDL2: o `build.sh` detecta `sdl2-config` sozinho. No Windows use MSYS2 (MINGW64): `pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2 python`, depois `./build.sh SLUS_004.93 PASTA_DOS_STEP`. No Linux/WSL: `apt install gcc python3 libsdl2-dev`.
-- Jogar: `./recomp_test SLUS_004.93 --bin Dragon_Ball_GT_-_Final_Bout.bin --janela`
-- Teclas: setas = direcional, Z = X(Cross), X = Circulo, A = Quadrado, S = Triangulo, Q/W = L1/R1, E/R = L2/R2, Enter = Start, Backspace ou Shift direito = Select, Esc = sair.
-- Aviso: ainda sem GTE (3D), audio e os overlays STEP02/03/40/999; a luta provavelmente vai travar.
+## Compilar do código-fonte (desenvolvedores)
+- **Windows (MSYS2 MINGW64):** veja [`GUIA-PC.md`](GUIA-PC.md).
+- **Linux:** `./build.sh SLUS_004.93 PASTA_DOS_STEP` e `./recomp_test SLUS_004.93 --bin disco.bin --janela`.
+- **Pacote de 1 clique:** `kit/montar_kit.py` monta o zip (veja o cabeçalho do script).
 
-## Marco 8 — GTE e primeira luta
-- `gte.c`: GTE implementado (RTPS/RTPT, NCLIP, OP, MVMVA, NCS/NCT/NCCS/NCCT/NCDS/NCDT, CC, CDP, DCPL, DPCS/DPCT, INTPL, SQR, GPF/GPL, AVSZ3/4).
-- overlays.txt agora tem STEP00, STEP01 e STEP40 (luta). A luta renderiza em 3D (512x240).
-- Script de entrada para chegar na luta sem teclado (Goku x Goku, ~2 min em tempo real por causa do carregamento do CD):
-  `--press START@700 --press CROSS@1500 --press CROSS@1900 --press CROSS@2300 --press CROSS@3000 --press START@3300 --press CROSS@3600`
-  (os numeros sao quadros; os botoes duram 4 quadros). Depure com `--shot N` (salva shot_N.ppm), `DBGS=1`, `GPU_LOGAT=N`, `VERBOSEAT=N`, `DUMPAT=N`.
-- Falta: audio (SPU), overlays STEP02/03/999, MDEC (videos), velocidade do carregamento de CD, conferir fidelidade do GTE.
+Arquivos do disco necessários: `SLUS_004.93` e `STEP00/01/02/03/40/999.BIN` (pasta `MENU`). O lançador do pacote os extrai sozinho (`kit/iso.py`).
 
-## Marco 9
-- `--cd-turbo N` acelera o CD em N vezes (ex.: `--cd-turbo 10`): a luta carrega em ~3400 quadros em vez de ~6700. Use junto com `--janela`.
+## Como funciona
+- `recomp.py`: lê o executável/overlays MIPS e gera C (uma função por rotina).
+- `build.py` + `overlays.txt`: gera o jogo e as tabelas de overlays (identificados por hash em tempo de execução).
+- Runtime: `runtime.c` (CPU, BIOS emulada, memory card), `hw.c` (CD, DMA, timers), `gpu.c`, `gte.c`, `spu.c` (som + reverb), `mdec.c`/`xa.c` (vídeo e áudio de vídeo), `video.c` (janela SDL2, controles, FPS).
+- Histórico técnico completo, marco a marco: [`docs/HISTORICO.md`](docs/HISTORICO.md).
 
-## Marco 10 — audio (SPU)
-- `spu.c`: 24 vozes ADPCM, envelope ADSR, pitch com interpolacao linear, volumes, key on/off, DMA canal 4 e FIFO manual. Saida pelo SDL (44,1 kHz estereo) com `--janela`. Sem reverb, sem ruido (noise) e sem XA/CD-DA ainda.
-- Depuracao: `AUDIO_RAW=arquivo.raw` grava o PCM s16 estereo 44100 Hz.
-
-## Marco 11 — MDEC, XA, overlays extras (parcial)
-- `mdec.c` (decodificador MDEC) e `xa.c` (audio XA do CD) escritos e ligados (DMA0/1, regs 0x1f801820/24, Setfilter, roteamento de setores de audio XA). Depuracao: `MDECLOG=1`.
-- Overlays STEP02/STEP03/STEP999 adicionados ao overlays.txt (raizes 8004aa98 / 80056d28 / 8003e1cc, da tabela de estados em 0x8002bd48). Ainda nao executados.
-- Video: **ainda nao funciona**. Com `--video` o jogo configura o MDEC (cmds 40000001/60000000), le 2 setores do STR e encerra o filme sem decodificar nenhum quadro. Por padrao os videos continuam pulados (`--pular-video` e o padrao; `--video` tenta o real). A investigacao continua em 8003e268/8003e03c (STEP00).
-- Corrigido: ReadN/ReadS nao cria mais uma segunda cadeia de leitura de setores. Regressao ok: o caminho menu -> luta continua funcionando.
-
-## Marco 12 — correcoes de CD (video ainda parcial)
-- Setloc agora so marca o destino; a posicao muda no ReadN/ReadS/Seek (como no hardware). Antes a leitura anterior continuava e comia os 2 primeiros setores do filme.
-- ReadN/ReadS respondem com o bit de leitura (0x20) no status.
-- Gancho em 0x800163b8 (tentativa de pegar quadro do STR): espera 150 us por tentativa, porque o limite de 2000 tentativas foi pensado para uma CPU lenta.
-- Depuracao nova: `WATCH=ENDERECO_HEX` imprime quando a palavra muda (ex.: `WATCH=8003EECC` = estado do filme do STEP00), `-cdd` mostra Setloc e setores XA/descartados.
-- Video (`--video`): agora o primeiro setor (frame 1, chunk 0) chega e o jogo le o cabecalho de 32 bytes, mas depois nao busca o corpo (2016 bytes) e trava esperando algo do CD. Proximo passo: ver qual condicao em libcd/libpress ele espera depois do cabecalho.
-- Regressao ok: menu -> luta continua funcionando.
-
-## Marco 13 — Memory card (Build-up / STEP03)
-- HLE de eventos do kernel (OpenEvent/TestEvent/DeliverEvent...) e `_card_info/_card_load/_card_read/_card_write`.
-- `_card_load` agora retorna sucesso (R[2]=1); o jogo formata o cartão e salva em `memcard1.mcd` (128 KB).
-- Tela de Build-up (blocos 1-7, CURRENT CHARACTER) alcançada e renderizada.
-- Janela de tolerância do CD fixada em 0.25 s.
-- Pendente: vídeo real (--video), STEP02/STEP999, teste de áudio com ouvido humano.
-
-## Marco 14 — Correções de interrupção e início do vídeo (STR/MDEC)
-- `ReturnFromException` (B0:17) agora encerra a interrupção (longjmp), e a entrada da ISR devolve `setjmp != 0`. Antes cada IRQ reexecutava o init da libapi, zerando DICR e a tabela de callbacks de DMA (inclusive o de fim de DMA do CD usado no STR).
-- DICR: flags de canal são setadas quando o bit de enable do canal está ligado; IRQ só se o master (bit 23) estiver ligado.
-- CD: o setor só é liberado quando lido por inteiro (cabeçalho STR de 32 bytes + corpo de 2016).
-- Overlays: só reavalia o hash quando o DMA do CD cai na área de overlays (dados do overlay mudam em execução).
-- `overlays.txt`: STEP00 ganhou a raiz 8003ed04 (callback de fade do vídeo).
-- Resultado: com `--video` o jogo lê os 5 setores do 1º quadro, o MDEC decodifica (quadro preto = início de fade) e o jogo segue para o STEP01. Os quadros seguintes ainda não são pedidos: o jogo encerra o vídeo após o 1º quadro (causa em investigação).
-- Memory card (Marco 13) incluído. Depuração: DBGIO=1 (escritas em DICR/I_MASK/DPCR), TRACE_HDR=N (traça N chamadas após cada cabeçalho STR), MDECLOG=1 (mostra quadro e média).
-- Regressão: menu → luta (STEP40) continua funcionando.
-
-## Marco 15 — Vídeo STR/MDEC funcionando (`--video`)
-- Causa do vídeo parar no 1º quadro: o setor seguinte era entregue dentro da mesma ISR, antes do callback de fim de DMA (8001f250) marcar o quadro como pronto; o 1º setor do quadro seguinte era descartado pela libcd. Agora `cd_poll` não entrega setor de dados enquanto `in_isr` (equivale aos ~13 ms do hardware entre setores).
-- Resultado: a abertura da Bandai toca (206 quadros decodificados em 1700 vblanks, imagem correta). Regressão menu → luta (STEP40) OK.
-- Tentativas descartadas: reagendar setores com `now+periodo` e ordenar a fila de eventos deixaram o carregamento normal lento (head-of-line); não usar.
-- Depuração nova: DBGST=1 (parâmetros do StSetStream).
-- Pendente: XA (áudio dos vídeos) ainda não validado de ouvido; STEP02/STEP999; janela SDL em tela real.
-
-## Marco 16 — STEP02 e STEP999 validados
-
-- Novas ferramentas de depuração: `DBGSTATE=1` (transições de estado/substate), `TRACE_SUB=<hex>`, `explore.sh` e `--estado HEX@QUADRO`
-  (força a variável de estado 0x80034fdc e a flag de saída 0x80056878 do STEP01, para pular direto a outro overlay).
-- `--estado 20@700` carrega e executa o overlay STEP02 (fundo de rocha com o dragão); `--estado 50@700` executa o STEP999 (céu/nuvens). Nenhum "[nao traduzido]".
-- Resolvido: STEP02 é o fluxo normal do jogo (Tournament pede START na tela "FIGHT n"); STEP999 é o Sound Menu (SELECT no título).
-- Às vezes aparece "CD timeout" ao forçar o estado (timing do CD com `--cd-turbo`); não reproduz em toda execução.
-
-### Notas de exploração (Marco 16, continuação)
-- O "[travou] loop sem fim" que aparecia nos testes era o alarme padrão de 30 s do runtime. Use `ALARM=0` (ou um valor maior) em execuções longas.
-- `DBGSUB=1` (com `DBGSTATE=1`) imprime também o substate do STEP01 a cada mudança.
-- Tela do torneio: substate 0x218 é tratado por 80041d24. TRIANGLE leva a 0x219, que volta para 0x215; CROSS volta ao menu (0x20d). Esse caminho não chegou a STEP02/STEP999.
-
-### Reverb do SPU
-- `spu.c`: reverb padrão (22,05 kHz, buffer em `mBASE`, EON por voz, `vLOUT/vROUT`), ativado por SPUCNT bit 7. Testado no áudio do menu (ouvido, soa normal).
-- CD-DA não é necessário: a imagem do jogo tem uma única faixa de dados.
-
-### Windows, controles e memory card (Marco 16, fim)
-- Roda no Windows (MSYS2 MINGW64 + SDL2): janela, teclado, controle XInput (jogador 1 e 2) e audio. Veja `GUIA-PC.md`.
-- BIOS A0: libc do PsyQ agora emulada (strlen, strcpy, strcat, memcpy, memset, memcmp, rand/srand...). Antes devolvia 0 e quebrava o `sprintf` do nome do arquivo de save.
-- Memory card: API de arquivos da BIOS (open/read/write/close/firstfile/nextfile/erase/format) sobre `memcard1.mcd` (128 KB), eventos HwCARD e SwCARD. Save no Build-up testado pelo usuario: funciona.
-
-### Sound Menu, FPS e validação final (Marco 16, fechamento)
-- BIOS B0:51 (`Krom2RawAdd`): o Sound Menu desenha o texto com a fonte Krom da BIOS, que não temos. Agora é emulada com uma fonte gerada (`krom_font.h`, DejaVu Sans Bold): o texto do menu aparece.
-- Overlay de FPS: tecla **F3** liga/desliga (ou `FPS=1` para iniciar ligado). Medido pelo usuario: 60 FPS em luta.
-- Novos logs: `GPU_LOADS=1` imprime LoadImage, cópias VRAM e fim de transferência.
-- Validado pelo usuario no Windows: Tournament completo, Battle (VS Com = modo história, VS Man com controle 2), Build-up com save, Treino, Sound Menu, teclado e XInput (P1/P2), áudio com reverb.
-
-### Pacote de 1 clique (`kit/`)
-- `kit/jogar.py` + `kit/Jogar.bat`: o usuario escolhe o proprio `.cue/.bin`; o lancador extrai `SLUS_004.93` e `STEP*.BIN` (`kit/iso.py`, leitor ISO9660 proprio), roda `build.py`, compila com Zig (`zig cc -target x86_64-windows-gnu`) e abre o jogo. Compila so na primeira vez (chave por hash do disco + fontes).
-- `kit/montar_kit.py` monta o zip de distribuicao (Python embutido + Zig reduzido + SDL2). O pacote **nao contem nada do jogo**; a pasta `dados/` gerada na maquina do usuario contem codigo do jogo e nao deve ser compartilhada.
+## Depuração
+`-cd` (log de CD), `-v` (rastro de chamadas), `DBGSTATE=1`/`DBGSUB=1` (estados do jogo), `GPU_LOADS=1` (uploads de VRAM), `MDECLOG=1`, `ALARM=0` (desliga o watchdog de 30 s), `--cd-turbo N` (carregamentos mais rápidos; vídeo e XA ficam em velocidade real).
