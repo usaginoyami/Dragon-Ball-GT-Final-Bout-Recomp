@@ -51,5 +51,8 @@ Arquivos do disco necessários: `SLUS_004.93` e `STEP00/01/02/03/40/999.BIN` (pa
 - Runtime: `runtime.c` (CPU, BIOS emulada, memory card), `hw.c` (CD, DMA, timers), `gpu.c`, `gte.c`, `spu.c` (som + reverb), `mdec.c`/`xa.c` (vídeo e áudio de vídeo), `video.c` (janela SDL2, controles, FPS).
 - Histórico técnico completo, marco a marco: [`docs/HISTORICO.md`](docs/HISTORICO.md).
 
+## Outros projetos relacionados
+Este projeto é independente e de aprendizado. Se você quer uma solução mais madura e com mais jogos, veja o [**psxrecomp**](https://github.com/mstan/psxrecomp) (mstan, licença PolyForm Noncommercial): um framework de recompilação estática para PS1, com BIOS recompilada, GPU em OpenGL e vários jogos, **inclusive o Dragon Ball GT: Final Bout** (com versus online/LAN). Aqui o foco é uma recompilação pequena e fácil de ler, com runtime próprio (BIOS por HLE, GPU em software) e um pacote de 1 clique.
+
 ## Depuração
 `-cd` (log de CD), `-v` (rastro de chamadas), `DBGSTATE=1`/`DBGSUB=1` (estados do jogo), `GPU_LOADS=1` (uploads de VRAM), `MDECLOG=1`, `ALARM=0` (desliga o watchdog de 30 s), `--cd-turbo N` (carregamentos mais rápidos; vídeo e XA ficam em velocidade real).
