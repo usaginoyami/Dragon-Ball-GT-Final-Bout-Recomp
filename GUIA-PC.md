@@ -73,4 +73,4 @@ Se algo der erro, copie as últimas linhas do terminal e me mande.
 
 ## Overlay de FPS
 
-F3 liga/desliga o contador de FPS (canto superior esquerdo). Para iniciar ligado: `FPS=1 ./recomp_test ...`.
+F11 ou Alt+Enter alterna tela cheia. F3 liga/desliga o contador de FPS (canto superior esquerdo). Para iniciar ligado: `FPS=1 ./recomp_test ...`.

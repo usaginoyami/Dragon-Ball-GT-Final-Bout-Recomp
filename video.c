@@ -87,6 +87,10 @@ void video_present(void) {
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT || (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)) exit(0);
         if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F3 && !e.key.repeat) show_fps = !show_fps;
+        if (e.type == SDL_KEYDOWN && !e.key.repeat && (e.key.keysym.sym == SDLK_F11 || (e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT)))) {
+            SDL_Window* w = SDL_RenderGetWindow(ren); { int fs = (SDL_GetWindowFlags(w) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0; SDL_SetWindowFullscreen(w, fs ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP); SDL_ShowCursor(fs ? SDL_ENABLE : SDL_DISABLE); }
+            continue;
+        }
         if (e.type == SDL_KEYDOWN && !e.key.repeat) { keys |= keybit(e.key.keysym.sym); keys2 |= keybit2(e.key.keysym.sym); }
         if (e.type == SDL_KEYUP) { keys &= ~keybit(e.key.keysym.sym); keys2 &= ~keybit2(e.key.keysym.sym); }
         if (e.type == SDL_CONTROLLERDEVICEADDED) gc_open();
