@@ -21,6 +21,9 @@ Linux: compila e roda (o desenvolvimento e os testes automáticos foram feitos e
 
 O pacote traz Python, o compilador Zig e a SDL2 embutidos; nada precisa ser instalado. Ele não contém nada do jogo.
 
+### Linux (x86_64)
+Baixe **FinalBout-Recomp-linux-x86_64.tar.gz** (em *Releases*), extraia e rode `./Jogar.sh /caminho/do/disco.cue`. Precisa só da SDL2 do sistema (`sudo apt install libsdl2-2.0-0`). A compilação e a abertura do jogo foram testadas em Linux sem tela (SDL em modo dummy); o jogo em si foi jogado só no Windows.
+
 ### Teclas
 | | Jogador 1 | Jogador 2 |
 |---|---|---|

@@ -1,0 +1,29 @@
+FINAL BOUT RECOMP - pacote de 1 clique (Linux x86_64)
+=======================================================
+
+Voce precisa do SEU disco do Dragon Ball GT - Final Bout (NTSC-U, SLUS-004.93)
+em .cue + .bin (ou so .bin). Este pacote NAO contem nada do jogo.
+
+REQUISITOS: Linux 64 bits com SDL2 instalada (a maioria das distros ja tem).
+  Debian/Ubuntu: sudo apt install libsdl2-2.0-0
+  Fedora:        sudo dnf install SDL2
+  Arch:          sudo pacman -S sdl2
+(Tela de escolha do disco usa tkinter; se nao abrir, o programa pede o caminho no terminal.)
+
+COMO USAR
+  1. Extraia a pasta (tar/unzip).
+  2. No terminal:   ./Jogar.sh   /caminho/para/seu-disco.cue
+     (nas proximas vezes basta ./Jogar.sh; ele lembra o disco)
+  3. Na PRIMEIRA vez ele recompila o jogo (alguns minutos). Depois abre direto.
+
+TECLAS (jogador 1)
+  Setas = direcional | Z = X  X = O  A = quadrado  S = triangulo
+  Q/W = L1/R1 | E/R = L2/R2 | Enter = Start | Backspace = Select
+  F11 ou Alt+Enter = tela cheia | F3 = FPS | ESC = sair
+  Controle (SDL GameController): 1o = jogador 1, 2o = jogador 2.
+  Jogador 2 no teclado: I/J/K/L direcional, U/Y/O/P botoes, Enter do teclado numerico = Start.
+
+SAVE: dados/memcard1.mcd (copie para backup).
+OPCOES: ./Jogar.sh --reconstruir | --pular-video
+Aviso: a pasta "dados" contem codigo gerado do jogo. Nao compartilhe.
+Projeto: https://github.com/usaginoyami/Dragon-Ball-GT-Final-Bout-Recomp
