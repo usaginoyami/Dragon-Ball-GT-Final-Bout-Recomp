@@ -72,7 +72,15 @@ void cop0_wr(int r, uint32_t v) { cop0[r] = v; }
 
 /* ---- ganchos HLE: substituem funcoes da biblioteca Sony por versoes em C ---- */
 static uint32_t g_vcount;
+#ifdef _WIN32
+#include <windows.h>
+#include <mmsystem.h>
+double now_s(void) { static LARGE_INTEGER f; LARGE_INTEGER c; if (!f.QuadPart) QueryPerformanceFrequency(&f); QueryPerformanceCounter(&c); return (double)c.QuadPart / (double)f.QuadPart; }   /* relogio de alta resolucao (clock_gettime no Windows pode ser grosseiro: ~15 ms) */
+static void win_usleep(unsigned us) { if (us >= 400) { Sleep(1); return; } double t = now_s() + us * 1e-6; while (now_s() < t) YieldProcessor(); }   /* usleep do Windows tem granularidade de ~15 ms: quebrava o ritmo dos setores do CD (video) */
+#define usleep(x) win_usleep(x)
+#else
 double now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec * 1e-9; }
+#endif
 static double g_t0; static uint32_t vblank_count(void) { if (!g_t0) g_t0 = now_s(); return (uint32_t)((now_s() - g_t0) * 59.94); }
 static uint32_t g_vcb; static int in_cb; static uint32_t last_disp;
 void hw_set_speed(double); void spu_mix(int16_t*, int); int audio_queued(void); void audio_push(const int16_t*, int);
@@ -364,6 +372,9 @@ void call_addr(uint32_t a) {
 
 extern void func_entry_dummy(void);
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    timeBeginPeriod(1);
+#endif
     if (argc < 2) { fprintf(stderr, "uso: %s SLUS_004.93 [-v]\n", argv[0]); return 1; }
     FILE* f = fopen(argv[1], "rb"); if (!f) { perror("exe"); return 1; }
     uint8_t h[0x800]; if (fread(h, 1, 0x800, f) != 0x800) return 1;
