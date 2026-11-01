@@ -323,7 +323,7 @@ static void bios_call(uint32_t tbl, uint32_t fn) {
         case 0x02: name = "SysEnqIntRP"; break;
         default: break;
     }
-    fprintf(stderr, "[bios] %02x:%02x %s(%08x, %08x)\n", tbl & 0xff, fn, name, a0, a1);
+    { static int bl = -1; if (bl < 0) bl = getenv("BIOSLOG") != NULL; if (g_verbose || bl) fprintf(stderr, "[bios] %02x:%02x %s(%08x, %08x)\n", tbl & 0xff, fn, name, a0, a1); }
 }
 
 static int ov_valid;
