@@ -131,7 +131,7 @@ static void run_vblank(void) {
 }
 static void wait_vblank(void) { uint32_t c = vblank_count(); while (vblank_count() == c) usleep(500); run_vblank(); }
 static int hle_log;
-static int ov_active = -1; static int g_skipvid = 1;
+static int ov_active = -1; static int g_skipvid = 0;
 int hle_hook(uint32_t a) {
     switch (a) {
     case 0x8003e14c: /* STEP00: init do video LOGO.STR -> pula (finge que terminou) */

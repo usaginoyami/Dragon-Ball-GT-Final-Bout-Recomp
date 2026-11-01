@@ -32,7 +32,7 @@ O build detecta o SDL2 sozinho. Se aparecer "pronto: ./recomp_test ...", deu cer
 
 ## 5. Jogar
 
-    ./recomp_test jogo/SLUS_004.93 --bin "jogo/NOME DO SEU DISCO.bin" --janela --cd-turbo 10 --video
+    ./recomp_test jogo/SLUS_004.93 --bin "jogo/NOME DO SEU DISCO.bin" --janela --cd-turbo 10
 
 Use o nome real do seu arquivo `.bin`, entre aspas se tiver espaços.
 `--cd-turbo 10` acelera as cargas (tire para o tempo real do CD). Por padrão o vídeo da Bandai é pulado; `--video` liga o vídeo com som.
